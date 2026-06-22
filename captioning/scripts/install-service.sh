@@ -1,13 +1,13 @@
 #!/bin/bash
 # Install (or update) the captioning systemd service.
 # Usage: sudo ./install-service.sh [username]
-#   username defaults to 'lscoc'
+#   username defaults to 'captioning'
 # Idempotent — safe to re-run at any time.
 
 set -e
 
-SERVICE_USER="${1:-lscoc}"
-INSTALL_DIR="/home/$SERVICE_USER/church-av"
+SERVICE_USER="${1:-captioning}"
+INSTALL_DIR="/home/$SERVICE_USER/church-captioning"
 SERVICE_NAME="captioning"
 UNIT_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
