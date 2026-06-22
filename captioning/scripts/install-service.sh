@@ -7,7 +7,7 @@
 set -e
 
 SERVICE_USER="${1:-lscoc}"
-INSTALL_DIR="/home/$SERVICE_USER/church-av"
+INSTALL_DIR="/home/$SERVICE_USER/church-captioning"
 SERVICE_NAME="captioning"
 UNIT_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
