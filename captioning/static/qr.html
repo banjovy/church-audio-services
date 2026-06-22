@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{SITE_TITLE}} - QR Code</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #fff; color: #222; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; padding: 1rem; text-align: center; }
+    .qr-header {
+      position: fixed;
+      top: 1.5rem;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: clamp(1rem, 2vw, 1.5rem);
+      font-weight: 400;
+      color: rgba(0, 0, 0, 0.5);
+      letter-spacing: 0.05em;
+    }
+    .qr img { max-width: 300px; width: 100%; }
+    p { font-size: 1.2rem; margin-top: 1.5rem; max-width: 400px; color: #444; }
+  </style>
+</head>
+<body>
+  <div class="qr-header">{{SITE_TITLE}}</div>
+  <div class="qr"><img src="/qr.png" alt="QR code to access captions"></div>
+  <p>Scan or share this QR code to see the caption options screen</p>
+</body>
+</html>

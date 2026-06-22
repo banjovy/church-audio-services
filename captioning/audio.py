@@ -1,0 +1,145 @@
+"""Audio input handler - captures from USB/system audio interface."""
+
+import logging
+import threading
+import time
+
+import numpy as np
+import sounddevice as sd
+
+from .config import AudioConfig
+
+logger = logging.getLogger(__name__)
+
+
+class AudioInputHandler:
+    def __init__(self, config: AudioConfig):
+        self._config = config
+        self._buffer: list[np.ndarray] = []
+        self._lock = threading.Lock()
+        self._capturing = False
+        self._stream: sd.InputStream | None = None
+        self._input_level: float = -100.0
+        self._connected = True
+
+    def start_capture(self) -> None:
+        """Start capturing audio from configured device."""
+        self._capturing = True
+        try:
+            self._stream = sd.InputStream(
+                device=self._config.input_device,
+                samplerate=self._config.sample_rate,
+                channels=self._config.channels,
+                dtype="float32",
+                latency="high",
+                callback=self._audio_callback,
+            )
+            self._stream.start()
+            self._connected = True
+            logger.info("Audio capture started")
+        except Exception as e:
+            self._connected = False
+            logger.error(f"Failed to start audio capture: {e}")
+            raise
+
+    def stop_capture(self) -> None:
+        """Stop audio capture."""
+        self._capturing = False
+        if self._stream:
+            self._stream.stop()
+            self._stream.close()
+            self._stream = None
+
+    def get_chunk(self) -> np.ndarray | None:
+        """Get a chunk of audio, splitting on natural pauses when possible."""
+        min_samples = int(self._config.sample_rate * self._config.min_chunk_seconds)
+        max_samples = int(self._config.sample_rate * self._config.max_chunk_seconds)
+        pause_samples = int(self._config.sample_rate * 0.3)  # 300ms silence = pause
+
+        with self._lock:
+            if not self._buffer:
+                return None
+            concatenated = np.concatenate(self._buffer)
+            if len(concatenated) < min_samples:
+                return None
+
+            # Look for a silence gap after the minimum length
+            cut_point = None
+            search_end = min(len(concatenated), max_samples)
+
+            for pos in range(min_samples, search_end - pause_samples, pause_samples // 2):
+                window = concatenated[pos:pos + pause_samples]
+                peak = np.max(np.abs(window))
+                level_db = 20 * np.log10(peak + 1e-10)
+                if level_db < self._config.silence_threshold_db + 10:  # Slightly above silence threshold
+                    cut_point = pos
+                    break
+
+            # If no pause found and we've hit max, cut at max
+            if cut_point is None:
+                if len(concatenated) >= max_samples:
+                    cut_point = max_samples
+                else:
+                    return None  # Wait for more audio or a pause
+
+            chunk = concatenated[:cut_point]
+            leftover = concatenated[cut_point:]
+            self._buffer = [leftover] if len(leftover) > 0 else []
+
+        return self._preprocess(chunk)
+
+    def get_input_level(self) -> float:
+        """Return current input level in dB."""
+        return self._input_level
+
+    def is_capturing(self) -> bool:
+        return self._capturing and self._connected
+
+    def is_connected(self) -> bool:
+        return self._connected
+
+    def _audio_callback(self, indata: np.ndarray, frames, time_info, status):
+        if status:
+            logger.warning(f"Audio status: {status}")
+            if "input overflow" not in str(status).lower():
+                self._connected = False
+                return
+
+        audio = indata[:, 0] if indata.ndim > 1 else indata.flatten()
+
+        # Update level meter
+        peak = np.max(np.abs(audio))
+        self._input_level = 20 * np.log10(peak + 1e-10)
+
+        with self._lock:
+            self._buffer.append(audio.copy())
+
+    def _preprocess(self, audio: np.ndarray) -> np.ndarray:
+        """Resample if needed and normalize audio to target level."""
+        # Resample to 16kHz for Whisper if capture rate differs
+        if self._config.sample_rate != 16000:
+            ratio = self._config.sample_rate // 16000
+            if self._config.sample_rate == 16000 * ratio:
+                # Integer ratio — use fast decimation with anti-alias filter
+                from scipy.signal import decimate
+                audio = decimate(audio, ratio, ftype="fir", zero_phase=False).astype(np.float32)
+            else:
+                # Non-integer ratio — fall back to FFT resample
+                from scipy.signal import resample
+                target_length = int(len(audio) * 16000 / self._config.sample_rate)
+                audio = resample(audio, target_length).astype(np.float32)
+
+        peak = np.max(np.abs(audio))
+        if peak < 1e-10:
+            return audio
+
+        # Normalize to -3 dB
+        target_peak = 10 ** (-3.0 / 20)
+        audio = audio * (target_peak / peak)
+        return audio
+
+    def is_silent(self, audio: np.ndarray) -> bool:
+        """Check if audio chunk is below silence threshold."""
+        peak = np.max(np.abs(audio))
+        level_db = 20 * np.log10(peak + 1e-10)
+        return level_db < self._config.silence_threshold_db

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{SITE_TITLE}}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #000; color: #fff; height: 100vh; overflow: hidden; }
+    #status { position: fixed; top: 0.5rem; right: 0.5rem; font-size: 0.8rem; padding: 0.25rem 0.5rem; border-radius: 4px; z-index: 10; }
+    .connected { background: #16a34a; }
+    .reconnecting { background: #d97706; }
+    .disconnected { background: #dc2626; }
+
+    /* TV mode - vertically centered rolling window */
+    .mode-tv {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      height: 100vh;
+      padding: 1rem 3rem;
+    }
+    .mode-tv .tv-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: clamp(1rem, 2vw, 1.5rem);
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.5);
+      letter-spacing: 0.05em;
+      padding: 0.75rem 0;
+      background: #000;
+      z-index: 5;
+    }
+    .mode-tv .tv-line {
+      font-size: clamp(2rem, 5vw, 4rem);
+      font-weight: 600;
+      line-height: 1.4;
+      text-align: center;
+      padding: 0.3em 0;
+      animation: fadeIn 0.4s ease-in;
+      transition: opacity 0.5s ease;
+    }
+    .mode-tv .tv-line.fading {
+      opacity: 0.3;
+    }
+    .mode-tv .tv-line.placeholder {
+      opacity: 0.4;
+      font-style: italic;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(0.5em); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 600px) {
+      .mode-tv { padding: 1rem 1.5rem 2rem; }
+      .mode-tv .tv-line { font-size: clamp(1.2rem, 6.4vw, 2rem); }
+    }
+
+    /* Scroll mode */
+    .mode-scroll { padding: 1rem; padding-top: 3rem; overflow-y: auto; height: 100vh; }
+    .mode-scroll .scroll-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 0.9rem;
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.5);
+      letter-spacing: 0.05em;
+      padding: 0.75rem 0;
+      background: #000;
+      z-index: 5;
+    }
+    .mode-scroll .line { font-size: 1.2rem; margin-bottom: 0.75rem; padding: 0.5rem; border-bottom: 1px solid #333; }
+
+    .mode-scroll .line.placeholder {
+      opacity: 0.4;
+      font-style: italic;
+    }
+
+    /* Current-only mode */
+    .mode-current { display: flex; align-items: center; justify-content: center; height: 100vh; padding: 1.5rem; }
+    .mode-current .current-header {
+      position: fixed;
+      top: 1.5rem;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: clamp(1rem, 2vw, 1.5rem);
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.5);
+      letter-spacing: 0.05em;
+    }
+    .mode-current .caption { font-size: clamp(1.5rem, 5vw, 3rem); text-align: center; }
+  </style>
+</head>
+<body>
+  <div id="status" class="disconnected">Disconnected</div>
+  <div id="display"></div>
+  <script>
+    /*CONFIG*/
+    const reconnectTimeout = (typeof RECONNECT_TIMEOUT !== 'undefined') ? RECONNECT_TIMEOUT * 1000 : 600000;
+    const params = new URLSearchParams(location.search);
+    const mode = params.get('mode') || 'tv';
+    const maxLines = parseInt(params.get('lines') || '3', 10);
+    const display = document.getElementById('display');
+    const status = document.getElementById('status');
+    let disconnectedSince = null;
+
+    display.className = 'mode-' + mode;
+
+    const title = params.get('title') || '{{SITE_TITLE}}';
+
+    if (mode === 'current') {
+      display.innerHTML = '<div class="current-header">' + title + '</div>'
+        + '<div class="caption">Waiting for speech...</div>';
+    } else if (mode === 'scroll') {
+      display.innerHTML = '<div class="scroll-header">' + title + '</div>';
+    } else if (mode === 'tv') {
+      display.innerHTML = '<div class="tv-header">' + title + '</div>'
+        + '<div class="tv-line" style="opacity:0.5">Waiting for speech...</div>';
+    }
+
+    function setStatus(state, text) {
+      status.className = state;
+      status.textContent = text;
+    }
+
+    function addCaption(msg) {
+      const isPlaceholder = msg.text === '[...]';
+
+      if (mode === 'tv') {
+        // Remove the waiting placeholder if present
+        const waiting = display.querySelector('.tv-line[style]');
+        if (waiting) waiting.remove();
+
+        // Dim existing lines
+        const existing = display.querySelectorAll('.tv-line');
+        existing.forEach(el => el.classList.add('fading'));
+
+        // Add new line (full opacity via animation)
+        const div = document.createElement('div');
+        div.className = 'tv-line' + (isPlaceholder ? ' placeholder' : '');
+        div.textContent = msg.text;
+        display.appendChild(div);
+
+        // Remove oldest if over limit
+        const lines = display.querySelectorAll('.tv-line');
+        while (lines.length > maxLines) {
+          lines[0].remove();
+          break;
+        }
+
+        // Un-dim the most recent lines
+        const current = display.querySelectorAll('.tv-line');
+        current.forEach((el, i) => {
+          if (i === current.length - 1) {
+            el.classList.remove('fading');
+          }
+        });
+
+      } else if (mode === 'current') {
+        display.querySelector('.caption').textContent = msg.text;
+
+      } else {
+        const div = document.createElement('div');
+        div.className = 'line' + (isPlaceholder ? ' placeholder' : '');
+        div.textContent = msg.text;
+        display.appendChild(div);
+        display.scrollTop = display.scrollHeight;
+      }
+    }
+
+    function showGiveUp() {
+      display.innerHTML = '';
+      display.className = 'mode-current';
+      display.innerHTML = '<div class="caption">Unable to connect to the caption server. Please try again later.</div>';
+      setStatus('disconnected', 'Disconnected');
+    }
+
+    function connect() {
+      if (disconnectedSince && (Date.now() - disconnectedSince) >= reconnectTimeout) {
+        showGiveUp();
+        return;
+      }
+
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(proto + '//' + location.host + '/ws');
+
+      ws.onopen = () => {
+        disconnectedSince = null;
+        setStatus('connected', 'Connected');
+      };
+      ws.onclose = () => {
+        if (!disconnectedSince) disconnectedSince = Date.now();
+        if ((Date.now() - disconnectedSince) >= reconnectTimeout) {
+          showGiveUp();
+          return;
+        }
+        setStatus('reconnecting', 'Reconnecting...');
+        setTimeout(connect, 5000);
+      };
+      ws.onerror = () => ws.close();
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        addCaption(msg);
+      };
+    }
+
+    connect();
+  </script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+.env
+.kiro/
+__pycache__/
+*.pyc

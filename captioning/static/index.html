@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{SITE_TITLE}} Captions</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 600px; margin: 0.50rem auto; padding: 1rem; text-align: center; }
+    h1 { margin-bottom: 0.5rem; }
+
+    a { color: #2563eb; }
+    .modes { display: flex; flex-direction: column; gap: 1rem; align-items: center; margin-top: 1.5rem; }
+    .modes > div { width: 260px; }
+    .modes a { display: block; padding: 0.75rem 1.5rem; background: #2563eb; color: white; text-decoration: none; border-radius: 6px; text-align: center; }
+    .modes .desc { font-size: 0.85rem; color: #666; margin-top: 0.25rem; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>{{SITE_TITLE}} Captions</h1>
+  <p>Select a link below for the desired caption display.</p>
+  <div class="modes">
+    <div><a href="/display?mode=scroll">Scrolling</a><p class="desc">Running list of all captions, great for mobile devices</p></div>
+    <div><a href="/display?mode=tv">TV Display</a><p class="desc">Large centered text, best for big screens</p></div>
+    <div><a href="/display?mode=current">Current Only</a><p class="desc">Shows only the latest phrase</p></div>
+  </div>
+</body>
+</html>
