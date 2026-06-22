@@ -1,7 +1,7 @@
 [project]
 name = "captioning"
-version = "0.1.0"
-description = "Church AV real-time captioning system"
+version = "1.0.1"
+description = "Church AV near real-time captioning system"
 requires-python = ">=3.10"
 dependencies = [
     "faster-whisper==1.1.0",
