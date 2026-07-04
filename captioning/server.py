@@ -44,6 +44,8 @@ class CaptionServer:
         self._model_name = ""
         self._audio_level = -100.0
         self._max_audio_level = -100.0
+        # Audio broadcaster (set externally if enabled)
+        self._audio_broadcaster = None
 
     def set_status(self, language: str, model_name: str, audio_level: float):
         self._current_language = language
@@ -51,6 +53,10 @@ class CaptionServer:
         self._audio_level = audio_level
         if audio_level > self._max_audio_level:
             self._max_audio_level = audio_level
+
+    def set_audio_broadcaster(self, broadcaster) -> None:
+        """Attach the audio broadcaster for /ws/audio and /listen routes."""
+        self._audio_broadcaster = broadcaster
 
     async def start(self) -> None:
         self._app = web.Application()
@@ -63,6 +69,9 @@ class CaptionServer:
         self._app.router.add_get("/qr.png", self._handle_qr)
         self._app.router.add_get("/qr-ip.png", self._handle_qr_ip)
         self._app.router.add_post("/admin/language", self._handle_set_language)
+        if self._audio_broadcaster:
+            self._app.router.add_get("/ws/audio", self._audio_broadcaster.handle_websocket)
+            self._app.router.add_get("/listen", self._handle_listen)
         self._app.router.add_static("/static", STATIC_DIR)
 
         self._runner = web.AppRunner(self._app)
@@ -118,6 +127,11 @@ class CaptionServer:
             "/*CONFIG*/",
             f"const RECONNECT_TIMEOUT = {self._reconnect_timeout};"
         )
+        return web.Response(text=html, content_type="text/html")
+
+    async def _handle_listen(self, request: web.Request) -> web.Response:
+        html = (STATIC_DIR / "listen.html").read_text()
+        html = html.replace("{{SITE_TITLE}}", self._site_title)
         return web.Response(text=html, content_type="text/html")
 
     async def _handle_websocket(self, request: web.Request) -> web.WebSocketResponse:

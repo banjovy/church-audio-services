@@ -1,11 +1,11 @@
 {
-  "site_title": "Church Audio Captions",
+  "site_title": "Church Audio Services",
   "whisper_model": "small",
   "log_level": "info",
   "language": "en",
   "server_port": 8080,
   "audio": {
-    "input_device": "Usb Audio",
+    "input_device": 0,
     "sample_rate": 48000,
     "channels": 1,
     "chunk_duration_ms": 1000,
@@ -18,6 +18,9 @@
   "max_clients": 30,
   "no_speech_timeout": 30,
   "reconnect_timeout": 600,
+  "audio_stream_enabled": true,
+  "audio_stream_bitrate": 128000,
+  "max_audio_clients": 30,
   "profanity_whitelist": [
     "hell",
     "god",
@@ -41,6 +44,8 @@
     "loins",
     "lube",
     "moron",
+    "murder",
+    "murdering",
     "negro",
     "nude",
     "oral",

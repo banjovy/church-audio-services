@@ -21,6 +21,11 @@ class AudioInputHandler:
         self._stream: sd.InputStream | None = None
         self._input_level: float = -100.0
         self._connected = True
+        self._audio_tap: callable | None = None  # Optional tap for live audio streaming
+
+    def set_audio_tap(self, tap: callable) -> None:
+        """Set a callback that receives a copy of every raw PCM buffer (audio thread)."""
+        self._audio_tap = tap
 
     def start_capture(self) -> None:
         """Start capturing audio from configured device."""
@@ -110,6 +115,13 @@ class AudioInputHandler:
         # Update level meter
         peak = np.max(np.abs(audio))
         self._input_level = 20 * np.log10(peak + 1e-10)
+
+        # Feed raw PCM to audio stream tap (before any resampling)
+        if self._audio_tap is not None:
+            try:
+                self._audio_tap(audio.copy())
+            except Exception:
+                pass  # Never let the tap break audio capture
 
         with self._lock:
             self._buffer.append(audio.copy())

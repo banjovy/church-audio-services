@@ -11,6 +11,7 @@ from pathlib import Path
 from better_profanity import profanity
 
 from .audio import AudioInputHandler
+from .audio_broadcast import AudioBroadcaster
 from .audio_file import FileAudioSource
 from .config import AppConfig
 from .server import CaptionServer
@@ -109,6 +110,19 @@ async def run(config: AppConfig, audio_file: str | None = None, no_realtime: boo
         site_title=config.site_title,
     )
     server.set_language_callback(engine.set_language)
+
+    # Set up audio broadcaster if enabled
+    broadcaster = None
+    if config.audio_stream_enabled:
+        broadcaster = AudioBroadcaster(
+            sample_rate=config.audio.sample_rate,
+            channels=config.audio.channels,
+            bitrate=config.audio_stream_bitrate,
+            max_clients=config.max_audio_clients,
+        )
+        broadcaster.start()
+        server.set_audio_broadcaster(broadcaster)
+
     await server.start()
 
     # Start audio source (file or live)
@@ -126,16 +140,35 @@ async def run(config: AppConfig, audio_file: str | None = None, no_realtime: boo
             logger.error("Check that an audio input device is connected.")
             sys.exit(1)
 
+    # Connect audio tap to broadcaster
+    if broadcaster and not audio_file:
+        audio.set_audio_tap(broadcaster.feed_audio)
+
     logger.info("=== Caption system ready ===")
     logger.info(f"  Model: {engine.get_model_name()}")
     logger.info(f"  Language: {config.language}")
     logger.info(f"  Server: http://0.0.0.0:{config.server_port}")
+    if broadcaster:
+        logger.info(f"  Audio stream: /listen (Opus {config.audio_stream_bitrate // 1000}kbps)")
     if audio_file:
         logger.info(f"  Source: {audio_file} (realtime={'yes' if not no_realtime else 'no'})")
+
+    # Start broadcast loop as a background task
+    broadcast_task = None
+    if broadcaster:
+        broadcast_task = asyncio.create_task(broadcaster.start_broadcast_loop())
 
     try:
         await caption_loop(audio, engine, server, config)
     finally:
+        if broadcaster:
+            broadcaster.stop()
+        if broadcast_task:
+            broadcast_task.cancel()
+            try:
+                await broadcast_task
+            except asyncio.CancelledError:
+                pass
         audio.stop_capture()
         await server.stop()
     

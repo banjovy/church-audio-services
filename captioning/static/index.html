@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{SITE_TITLE}} Captions</title>
+  <title>{{SITE_TITLE}}</title>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 600px; margin: 0.50rem auto; padding: 1rem; text-align: center; }
     h1 { margin-bottom: 0.5rem; }
@@ -16,11 +16,12 @@
   </style>
 </head>
 <body>
-  <h1>{{SITE_TITLE}} Captions</h1>
-  <p>Select a link below for the desired caption display.</p>
+  <h1>{{SITE_TITLE}}</h1>
+  <p>Select an option below.</p>
   <div class="modes">
-    <div><a href="/display?mode=scroll">Scrolling</a><p class="desc">Running list of all captions, great for mobile devices</p></div>
-    <div><a href="/display?mode=tv">TV Display</a><p class="desc">Large centered text, best for big screens</p></div>
+    <div><a href="/listen">🎧 Listen Live</a><p class="desc">Stream audio directly to your device (hearing assist)</p></div>
+    <div><a href="/display?mode=scroll">Scrolling Captions</a><p class="desc">Running list of all captions, great for mobile devices</p></div>
+    <div><a href="/display?mode=tv">Large Display</a><p class="desc">Large centered text, best for big screens</p></div>
     <div><a href="/display?mode=current">Current Only</a><p class="desc">Shows only the latest phrase</p></div>
   </div>
 </body>
