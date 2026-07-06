@@ -1,4 +1,5 @@
 .env
 .kiro/
+.research/
 __pycache__/
 *.pyc

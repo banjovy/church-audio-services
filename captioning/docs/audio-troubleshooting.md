@@ -1,6 +1,6 @@
 # Audio Troubleshooting Guide
 
-This guide covers diagnosing and resolving USB audio device issues for the captioning system on Fedora Linux.
+This guide covers diagnosing and resolving USB audio device issues on Fedora Linux.
 
 ---
 
@@ -103,7 +103,7 @@ Update `config.json` to use a supported rate:
 }
 ```
 
-The captioning system automatically resamples to 16kHz for Whisper.
+The system automatically resamples to 16kHz for Whisper.
 
 ---
 
@@ -195,7 +195,7 @@ sudo dnf reinstall portaudio portaudio-devel
 
 ---
 
-## 10. Test with the Captioning System
+## 10. Test with the Application
 
 ### Using a known-good audio file
 

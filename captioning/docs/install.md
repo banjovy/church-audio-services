@@ -1,6 +1,6 @@
-# Captioning — Installation Guide
+# Installation Guide
 
-How to install (or reinstall) the captioning system on a fresh or existing machine.
+How to install (or reinstall) the audio services system on a fresh or existing machine.
 
 ## Prerequisites
 
@@ -21,11 +21,17 @@ These are needed to compile native extensions for audio capture, Whisper, and im
 
 ### mDNS (optional but recommended)
 
-Avahi lets devices find the server by hostname (e.g. `captions.local`) without knowing the IP:
+Avahi lets devices find the server by hostname (e.g., `audio.local`) without knowing the IP:
 
 ```bash
 sudo dnf install avahi
 sudo systemctl enable --now avahi-daemon
+```
+
+To set the hostname to `audio` (so it resolves as `audio.local` on the LAN):
+
+```bash
+sudo hostnamectl set-hostname audio
 ```
 
 ### Firewall
@@ -40,7 +46,7 @@ sudo firewall-cmd --reload
 
 ### Service User Account
 
-Create a dedicated user to run the captioning service:
+Create a dedicated user to run the service:
 
 ```bash
 sudo useradd -m -s /bin/bash captioning
@@ -136,7 +142,7 @@ Why `plughw:` instead of `hw:`: The `plughw:` prefix adds ALSA's conversion plug
 
 This identifier is stable across reboots — it's tied to the device name rather than enumeration order. It only breaks if you connect a second device with the same ALSA card name (rare for USB interfaces).
 
-At startup, the captioning service validates the device and logs what it resolved. Check `journalctl -u captioning` if the device isn't found.
+At startup, the service validates the device and logs what it resolved. Check `journalctl -u captioning` if the device isn't found.
 
 ### 6. Configure the application
 
@@ -144,7 +150,9 @@ Edit `config.json` (at the project root) to match your setup. The key settings t
 
 - `whisper_model` — `"small"` is the default, good balance of speed and accuracy
 - `server_port` — default `8080`
-- `site_title` — shown on all display pages, change this to reflect your church or service name
+- `site_title` — shown on all display pages, change to reflect your church or service name
+- `audio_stream_enabled` — `true` to enable live audio streaming (hearing assist)
+- `audio_stream_bitrate` — Opus bitrate in bps (default 128000)
 
 ### 7. Install the systemd service
 
@@ -174,9 +182,10 @@ journalctl -u captioning -f
 ## Verifying the Install
 
 1. Check the service is active: `systemctl status captioning`
-2. Open a browser to `http://<hostname>.local:8080` — you should see the home page
-3. Check audio levels at `http://<hostname>.local:8080/status?pin=<your-pin>`
+2. Open a browser to `http://audio.local:8080` — you should see the home page
+3. Check audio levels at `http://audio.local:8080/status?pin=<your-pin>`
 4. Speak into the mic and confirm captions appear on the display pages
+5. Open `http://audio.local:8080/listen` and confirm audio playback works
 
 ## Updating After a Code Change
 
