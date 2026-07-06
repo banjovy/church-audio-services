@@ -106,16 +106,47 @@ ADMIN_PIN=123456
 
 Replace `123456` with your actual PIN. This protects the `/status` endpoint and admin controls.
 
-### 5. Configure the application
+### 5. Configure the audio input device
+
+Identify your USB audio interface's ALSA card name:
+
+```bash
+arecord -l
+```
+
+Example output:
+
+```
+**** List of CAPTURE Hardware Devices ****
+card 0: PCH [HDA Intel PCH], device 0: ALC295 Analog [ALC295 Analog]
+card 1: Device [USB Audio Device], device 0: USB Audio [USB Audio]
+```
+
+The USB interface is card `Device`, subdevice `0`. Use a `plughw:` identifier in `config.json` — this tells ALSA to handle sample rate/format conversion automatically:
+
+```json
+"audio": {
+  "input_device": "plughw:CARD=Device,DEV=0"
+}
+```
+
+The `CARD=` value comes from the bracketed name after "card N:" in the `arecord -l` output. If your device shows as `card 2: Audio [Behringer USB Audio]`, you'd use `plughw:CARD=Audio,DEV=0`.
+
+Why `plughw:` instead of `hw:`: The `plughw:` prefix adds ALSA's conversion plugin, so if the device doesn't natively support the requested sample rate (48kHz), ALSA resamples transparently. Raw `hw:` will fail unless the device supports the exact rate.
+
+This identifier is stable across reboots — it's tied to the device name rather than enumeration order. It only breaks if you connect a second device with the same ALSA card name (rare for USB interfaces).
+
+At startup, the captioning service validates the device and logs what it resolved. Check `journalctl -u captioning` if the device isn't found.
+
+### 6. Configure the application
 
 Edit `config.json` (at the project root) to match your setup. The key settings to check:
 
-- `audio.input_device` — set to your USB interface name (run `python -c "import sounddevice; print(sounddevice.query_devices())"` to find it)
 - `whisper_model` — `"small"` is the default, good balance of speed and accuracy
 - `server_port` — default `8080`
 - `site_title` — shown on all display pages, change this to reflect your church or service name
 
-### 6. Install the systemd service
+### 7. Install the systemd service
 
 ```bash
 sudo ./captioning/scripts/install-service.sh
@@ -127,7 +158,7 @@ This creates and enables a systemd unit that:
 - Runs as the `captioning` user
 - Restarts on failure
 
-### 7. Start it up
+### 8. Start it up
 
 ```bash
 sudo systemctl start captioning
@@ -178,6 +209,6 @@ The install script is idempotent — safe to re-run anytime.
 
 - **Service won't start**: Check `journalctl -u captioning -n 50` for errors
 - **"ADMIN_PIN not set"**: Make sure `.env` exists at the project root and contains `ADMIN_PIN=...`
-- **Audio device not found**: Verify USB interface is plugged in, check with `sounddevice.query_devices()`
+- **Audio device not found**: Verify USB interface is plugged in, run `arecord -l` to confirm the card name matches `config.json`. Check `journalctl -u captioning` for the startup validation message.
 - **Model download hangs**: First run downloads the Whisper model from HuggingFace — needs internet
 - **SELinux denials**: The install script sets contexts automatically, but check `audit2why` if issues persist

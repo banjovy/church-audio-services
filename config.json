@@ -5,7 +5,7 @@
   "language": "en",
   "server_port": 8080,
   "audio": {
-    "input_device": 0,
+    "input_device": "plughw:CARD=Device,DEV=0",
     "sample_rate": 48000,
     "channels": 1,
     "chunk_duration_ms": 1000,

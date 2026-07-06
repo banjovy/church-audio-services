@@ -10,7 +10,7 @@ from pathlib import Path
 
 from better_profanity import profanity
 
-from .audio import AudioInputHandler
+from .audio import AudioInputHandler, validate_audio_device
 from .audio_broadcast import AudioBroadcaster
 from .audio_file import FileAudioSource
 from .config import AppConfig
@@ -132,6 +132,12 @@ async def run(config: AppConfig, audio_file: str | None = None, no_realtime: boo
         )
         logger.info(f"Using audio file: {audio_file}")
     else:
+        try:
+            resolved_device = validate_audio_device(config.audio.input_device)
+            config.audio.input_device = resolved_device
+        except RuntimeError as e:
+            logger.error(f"Audio device validation failed: {e}")
+            sys.exit(1)
         audio = AudioInputHandler(config.audio)
         try:
             audio.start_capture()
