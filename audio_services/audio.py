@@ -12,6 +12,86 @@ from .config import AudioConfig
 logger = logging.getLogger(__name__)
 
 
+def _resolve_alsa_card_name(device_str: str) -> int | None:
+    """Resolve an ALSA identifier (plughw:CARD=Name,DEV=0) to a sounddevice index.
+
+    Extracts the CARD name and matches it against sounddevice's device list.
+    Returns the matching device index, or None if not found.
+    """
+    # Extract card name from plughw:CARD=Name,DEV=0 or hw:CARD=Name,DEV=0
+    import re
+    match = re.search(r"CARD=([^,]+)", device_str)
+    if not match:
+        return None
+    card_name = match.group(1)
+
+    # Search sounddevice's device list for a matching input device
+    devices = sd.query_devices()
+    for idx, dev in enumerate(devices):
+        if dev["max_input_channels"] < 1:
+            continue
+        # sounddevice names often include the ALSA card name
+        if card_name.lower() in dev["name"].lower():
+            return idx
+    return None
+
+
+def validate_audio_device(device: str | int | None) -> int | None:
+    """Validate the configured audio device at startup.
+
+    Accepts None (system default), an integer index, or an ALSA device
+    string (e.g. 'plughw:CARD=Device,DEV=0').  For ALSA strings, resolves
+    to the matching sounddevice index since PortAudio cannot open raw ALSA
+    identifiers directly.
+
+    Returns the resolved device value to pass to sd.InputStream(device=...).
+    """
+    if device is None:
+        default = sd.query_devices(kind="input")
+        logger.info(f"Audio input: using system default — {default['name']}")
+        return device
+
+    if isinstance(device, int):
+        info = sd.query_devices(device)
+        if info["max_input_channels"] < 1:
+            raise RuntimeError(
+                f"Audio device index {device} ({info['name']}) has no input channels"
+            )
+        logger.info(f"Audio input: index {device} — {info['name']}")
+        return device
+
+    # String — ALSA identifier like plughw:CARD=Device,DEV=0
+    # Resolve to sounddevice index since PortAudio can't open these directly
+    if device.startswith(("hw:", "plughw:")):
+        idx = _resolve_alsa_card_name(device)
+        if idx is not None:
+            info = sd.query_devices(idx)
+            logger.info(f"Audio input: '{device}' resolved to index {idx} — {info['name']}")
+            return idx
+        else:
+            raise RuntimeError(
+                f"Audio device '{device}' — could not find a matching input device. "
+                f"Run 'arecord -l' to verify the card name, then check that the CARD= "
+                f"value matches a device in 'python -c \"import sounddevice; print(sounddevice.query_devices())\"'"
+            )
+
+    # Plain substring match against device names
+    try:
+        info = sd.query_devices(device)
+        if info["max_input_channels"] < 1:
+            raise RuntimeError(
+                f"Audio device '{device}' ({info['name']}) has no input channels"
+            )
+        logger.info(f"Audio input: '{device}' — {info['name']}")
+        return device
+    except ValueError:
+        raise RuntimeError(
+            f"Audio device '{device}' not found. "
+            "Use an ALSA identifier (plughw:CARD=...,DEV=0), "
+            "a device index, or null for system default."
+        )
+
+
 class AudioInputHandler:
     def __init__(self, config: AudioConfig):
         self._config = config
@@ -21,6 +101,11 @@ class AudioInputHandler:
         self._stream: sd.InputStream | None = None
         self._input_level: float = -100.0
         self._connected = True
+        self._audio_tap: callable | None = None  # Optional tap for live audio streaming
+
+    def set_audio_tap(self, tap: callable) -> None:
+        """Set a callback that receives a copy of every raw PCM buffer (audio thread)."""
+        self._audio_tap = tap
 
     def start_capture(self) -> None:
         """Start capturing audio from configured device."""
@@ -110,6 +195,13 @@ class AudioInputHandler:
         # Update level meter
         peak = np.max(np.abs(audio))
         self._input_level = 20 * np.log10(peak + 1e-10)
+
+        # Feed raw PCM to audio stream tap (before any resampling)
+        if self._audio_tap is not None:
+            try:
+                self._audio_tap(audio.copy())
+            except Exception:
+                pass  # Never let the tap break audio capture
 
         with self._lock:
             self._buffer.append(audio.copy())

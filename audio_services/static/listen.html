@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{SITE_TITLE}} — Listen</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      min-height: 100vh; padding: 1rem;
+      background: #0f172a; color: #e2e8f0;
+    }
+    h1 { font-size: 1.25rem; margin-bottom: 1.5rem; opacity: 0.8; }
+    #play-btn {
+      font-size: 1.5rem; padding: 1em 2em;
+      border-radius: 12px; border: none;
+      background: #2563eb; color: white;
+      cursor: pointer; transition: background 0.2s;
+    }
+    #play-btn:active { background: #1d4ed8; }
+    #play-btn:disabled { background: #475569; cursor: default; }
+    #status {
+      margin-top: 1rem; font-size: 0.9rem;
+      padding: 0.5rem 1rem; border-radius: 6px;
+    }
+    .connected { color: #4ade80; }
+    .disconnected { color: #f87171; }
+    .connecting { color: #fbbf24; }
+    #level-bar {
+      width: 200px; height: 6px; margin-top: 1.5rem;
+      background: #334155; border-radius: 3px; overflow: hidden;
+    }
+    #level-fill {
+      height: 100%; width: 0%; background: #4ade80;
+      transition: width 0.1s;
+    }
+  </style>
+</head>
+<body>
+  <h1>{{SITE_TITLE}}</h1>
+  <button id="play-btn">▶ Listen</button>
+  <div id="status" class="disconnected">Tap to start</div>
+  <div id="level-bar"><div id="level-fill"></div></div>
+  <a href="/" style="margin-top: 2rem; color: #94a3b8; text-decoration: none; font-size: 0.9rem; padding: 0.5rem 1rem; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center;">← Home</a>
+
+  <script>
+    const btn = document.getElementById('play-btn');
+    const statusEl = document.getElementById('status');
+    const levelFill = document.getElementById('level-fill');
+
+    let audioCtx = null;
+    let audioWs = null;
+    let nextStartTime = 0;
+    let active = false;
+
+    btn.addEventListener('click', () => {
+      if (active) {
+        stopAudio();
+      } else {
+        startAudio();
+      }
+    });
+
+    function setStatus(cls, text) {
+      statusEl.className = cls;
+      statusEl.textContent = text;
+    }
+
+    function stopAudio() {
+      active = false;
+      if (audioWs) { audioWs.close(); audioWs = null; }
+      if (audioCtx) { audioCtx.close(); audioCtx = null; }
+      btn.textContent = '▶ Listen';
+      btn.disabled = false;
+      setStatus('disconnected', 'Stopped');
+      levelFill.style.width = '0%';
+    }
+
+    function startAudio() {
+      active = true;
+      btn.textContent = '⏳ Connecting...';
+      btn.disabled = true;
+      audioCtx = new AudioContext({ sampleRate: 48000 });
+      const JITTER_MS = 80;
+
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      audioWs = new WebSocket(`${proto}//${location.host}/ws/audio`);
+      audioWs.binaryType = 'arraybuffer';
+
+      audioWs.onopen = () => {
+        setStatus('connected', '🔊 Listening');
+        btn.textContent = '⏹ Stop';
+        btn.disabled = false;
+        nextStartTime = 0;
+      };
+
+      audioWs.onmessage = async (event) => {
+        try {
+          const audioBuffer = await audioCtx.decodeAudioData(event.data);
+
+          // Trim overlap warmup frames from start (OVERLAP_FRAMES * 960 samples at 48kHz)
+          const overlapSamples = 3 * 960;
+          const trimmedLength = audioBuffer.length - overlapSamples;
+          if (trimmedLength <= 0) return;
+
+          const trimmed = audioCtx.createBuffer(
+            audioBuffer.numberOfChannels,
+            trimmedLength,
+            audioBuffer.sampleRate
+          );
+          for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
+            const src = audioBuffer.getChannelData(ch);
+            const dst = trimmed.getChannelData(ch);
+            dst.set(src.subarray(overlapSamples));
+          }
+
+          const source = audioCtx.createBufferSource();
+          source.buffer = trimmed;
+          source.connect(audioCtx.destination);
+
+          const now = audioCtx.currentTime;
+          const jitter = JITTER_MS / 1000;
+
+          if (nextStartTime < now + jitter) {
+            nextStartTime = now + jitter;
+          }
+          source.start(nextStartTime);
+          nextStartTime += trimmed.duration;
+
+          // Update level meter (scaled for visual midpoint)
+          const data = trimmed.getChannelData(0);
+          let peak = 0;
+          for (let i = 0; i < data.length; i++) {
+            const abs = Math.abs(data[i]);
+            if (abs > peak) peak = abs;
+          }
+          // Square root scaling so typical speech sits around 50%
+          levelFill.style.width = Math.min(100, Math.sqrt(peak) * 100) + '%';
+        } catch (e) {
+          // Skip segments that fail to decode
+        }
+      };
+
+      audioWs.onclose = () => {
+        if (!active) return;
+        setStatus('disconnected', 'Disconnected — reconnecting...');
+        btn.textContent = '⏳ Connecting...';
+        btn.disabled = true;
+        setTimeout(() => { if (active) startAudio(); }, 3000);
+      };
+
+      audioWs.onerror = () => {
+        setStatus('disconnected', 'Connection error');
+      };
+    }
+  </script>
+</body>
+</html>

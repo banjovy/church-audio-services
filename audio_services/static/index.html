@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{SITE_TITLE}}</title>
+  <style>
+    :root, .theme-glass {
+      --bg: #0f172a;
+      --bg-gradient: radial-gradient(ellipse at top, #1e293b 0%, #0f172a 70%);
+      --surface: rgba(255, 255, 255, 0.06);
+      --surface-border: rgba(255, 255, 255, 0.1);
+      --surface-hover: rgba(255, 255, 255, 0.1);
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #60a5fa;
+      --accent-glow: rgba(59, 130, 246, 0.3);
+      --radius: 16px;
+      --btn-text: #fff;
+      --shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+      --toggle-bg: rgba(255, 255, 255, 0.08);
+      --toggle-border: rgba(255, 255, 255, 0.15);
+      --toggle-text: #94a3b8;
+    }
+    .theme-light {
+      --bg: #f8fafc;
+      --bg-gradient: none;
+      --surface: #ffffff;
+      --surface-border: #e2e8f0;
+      --surface-hover: #f1f5f9;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --accent: #4f46e5;
+      --accent-hover: #6366f1;
+      --accent-glow: rgba(79, 70, 229, 0.15);
+      --radius: 12px;
+      --btn-text: #fff;
+      --shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      --toggle-bg: #fff;
+      --toggle-border: #e2e8f0;
+      --toggle-text: #64748b;
+    }
+    .theme-mono {
+      --bg: #000;
+      --bg-gradient: none;
+      --surface: transparent;
+      --surface-border: #333;
+      --surface-hover: #111;
+      --text: #fff;
+      --text-muted: #888;
+      --accent: #fff;
+      --accent-hover: #ccc;
+      --accent-glow: none;
+      --radius: 4px;
+      --btn-text: #000;
+      --shadow: none;
+      --toggle-bg: #000;
+      --toggle-border: #333;
+      --toggle-text: #888;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      background-image: var(--bg-gradient);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+      transition: background 0.3s, color 0.3s;
+    }
+    @media (min-width: 601px) {
+      body {
+        justify-content: flex-start;
+        padding-top: 6rem;
+      }
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-top: 3rem;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+    }
+    @media (min-width: 601px) {
+      h1 { margin-top: 0; }
+    }
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-bottom: 2rem;
+    }
+
+    .modes {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      width: 100%;
+      max-width: 320px;
+    }
+    .modes a {
+      display: block;
+      padding: 1rem 1.25rem;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      text-decoration: none;
+      text-align: center;
+      color: var(--text);
+      transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+      box-shadow: var(--shadow);
+    }
+    .modes a:hover, .modes a:focus {
+      background: var(--surface-hover);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+      outline: none;
+    }
+    .modes a .label {
+      display: block;
+      font-weight: 600;
+      font-size: 1.05rem;
+    }
+    .modes a .desc {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+    .modes a.primary .desc {
+      color: var(--text-muted);
+    }
+
+    .theme-toggle {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      display: flex;
+      gap: 2px;
+      background: var(--toggle-bg);
+      border: 1px solid var(--toggle-border);
+      border-radius: 8px;
+      padding: 3px;
+    }
+    .theme-toggle button {
+      background: none;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: var(--toggle-text);
+      transition: background 0.2s, color 0.2s;
+      line-height: 1;
+    }
+    .theme-toggle button:hover {
+      color: var(--text);
+    }
+    .theme-toggle button.active {
+      background: var(--accent);
+      color: var(--btn-text);
+    }
+  </style>
+</head>
+<body>
+  <div class="theme-toggle" aria-label="Theme switcher">
+    <button data-theme="theme-glass" title="Glass">●</button>
+    <button data-theme="theme-light" title="Light">○</button>
+    <button data-theme="theme-mono" title="Mono">▪</button>
+  </div>
+
+  <h1>{{SITE_TITLE}}</h1>
+  <p class="subtitle">Select an option below</p>
+
+  <div class="modes">
+    <a href="/listen" class="primary"><span class="label">🎧 Listen Live</span><span class="desc">Stream audio to your device</span></a>
+    <a href="/display?mode=scroll"><span class="label">📜 Scrolling Captions</span><span class="desc">Running list, great for mobile</span></a>
+    <a href="/display?mode=tv"><span class="label">📺 Large Display</span><span class="desc">Centered text for big screens</span></a>
+    <a href="/display?mode=current"><span class="label">💬 Current Only</span><span class="desc">Shows only the latest phrase</span></a>
+  </div>
+
+  <script>
+    const body = document.body;
+    const buttons = document.querySelectorAll('.theme-toggle button');
+    const stored = localStorage.getItem('theme') || 'theme-glass';
+
+    function applyTheme(theme) {
+      body.className = theme;
+      localStorage.setItem('theme', theme);
+      buttons.forEach(b => b.classList.toggle('active', b.dataset.theme === theme));
+    }
+
+    applyTheme(stored);
+    buttons.forEach(b => b.addEventListener('click', () => applyTheme(b.dataset.theme)));
+  </script>
+</body>
+</html>

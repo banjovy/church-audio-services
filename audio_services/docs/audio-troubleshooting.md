@@ -1,6 +1,6 @@
 # Audio Troubleshooting Guide
 
-This guide covers diagnosing and resolving USB audio device issues for the captioning system on Fedora Linux.
+This guide covers diagnosing and resolving USB audio device issues on Fedora Linux.
 
 ---
 
@@ -103,7 +103,7 @@ Update `config.json` to use a supported rate:
 }
 ```
 
-The captioning system automatically resamples to 16kHz for Whisper.
+The system automatically resamples to 16kHz for Whisper.
 
 ---
 
@@ -195,12 +195,12 @@ sudo dnf reinstall portaudio portaudio-devel
 
 ---
 
-## 10. Test with the Captioning System
+## 10. Test with the Application
 
 ### Using a known-good audio file
 
 ```bash
-python -m captioning.main --file test.wav --no-realtime
+python -m audio_services.main --file test.wav --no-realtime
 ```
 
 If this produces valid captions, live capture quality is the issue.
@@ -208,7 +208,7 @@ If this produces valid captions, live capture quality is the issue.
 ### Using live capture
 
 ```bash
-python -m captioning.main --model tiny
+python -m audio_services.main --model tiny
 ```
 
 Watch the logs for:
@@ -288,5 +288,5 @@ Set `input_device` to `null` to use the system default.
 8. [ ] Mic gain set appropriately
 9. [ ] PortAudio installed
 10. [ ] `sounddevice.query_devices()` lists the device
-11. [ ] `captioning --file test.wav` produces captions
+11. [ ] `audio-services --file test.wav` produces captions
 12. [ ] Live capture produces captions

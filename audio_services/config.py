@@ -1,4 +1,4 @@
-"""Configuration management for the captioning system."""
+"""Configuration management for the audio services system."""
 
 import json
 import os
@@ -46,6 +46,9 @@ class AppConfig:
     reconnect_timeout: int = 600
     profanity_whitelist: list[str] = field(default_factory=list)
     audio: AudioConfig = field(default_factory=AudioConfig)
+    audio_stream_enabled: bool = True
+    audio_stream_bitrate: int = 96000
+    max_audio_clients: int = 50
 
     @classmethod
     def from_file(cls, path: Path) -> "AppConfig":
