@@ -1,4 +1,4 @@
-# Church Captioning
+# Church Audio Services
 
 Real-time live captioning system for church services. Captures audio from a mixer board, transcribes with Whisper, and broadcasts captions to phones/TVs via WebSocket.
 
@@ -34,13 +34,13 @@ cp .env.example .env
 
 ```bash
 # Live audio (default)
-captioning
+audio-services
 
 # From an audio file (for testing)
-captioning --file path/to/audio.mp3
+audio-services --file path/to/audio.mp3
 
 # Override model or language
-captioning --model base --language es
+audio-services --model base --language es
 ```
 
 ## Deployment
@@ -48,7 +48,7 @@ captioning --model base --language es
 An install script sets up a systemd service for auto-start on boot:
 
 ```bash
-sudo ./captioning/scripts/install-service.sh [username]
+sudo ./audio_services/scripts/install-service.sh [username]
 ```
 
 ## Display Modes

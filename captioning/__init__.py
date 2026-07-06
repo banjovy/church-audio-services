@@ -1,1 +1,0 @@
-# Church AV Captioning System

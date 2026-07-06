@@ -4,7 +4,7 @@
 
 Live audio from the mixer board is streamed to mobile clients over local WiFi via WebSocket + Web Audio API. Users connect at `/listen`, tap play, and hear the service audio through earphones or hearing devices.
 
-This feature is integrated into the existing captioning app — no separate server or external dependencies.
+This feature is integrated into the existing audio services app — no separate server or external dependencies.
 
 ## Signal Chain
 
@@ -18,7 +18,7 @@ Mixer (XLR out) → USB audio interface → Computer (sounddevice capture @ 48kH
 
 ### Encoding (server side)
 
-- **Module**: `captioning/audio_broadcast.py`
+- **Module**: `audio_services/audio_broadcast.py`
 - **Encoder**: PyAV (libopus) — already a project dependency, no external binary needed
 - **Audio tap**: `AudioInputHandler._audio_callback` passes a copy of every raw PCM buffer to the broadcaster before any Whisper preprocessing
 - **Encoding runs off the audio thread** — raw PCM is buffered, encoding happens in `asyncio.to_thread` to avoid sounddevice input overflows
@@ -29,7 +29,7 @@ Mixer (XLR out) → USB audio interface → Computer (sounddevice capture @ 48kH
 
 ### Playback (client side)
 
-- **Page**: `/listen` → `captioning/static/listen.html`
+- **Page**: `/listen` → `audio_services/static/listen.html`
 - **API**: WebSocket receives binary Ogg segments, decoded with `AudioContext.decodeAudioData()`
 - **Jitter buffer**: 80ms lookahead scheduling to smooth network variance
 - **Overlap trimming**: Client strips the first 60ms (3 × 960 samples) from each decoded segment to avoid double-playing the warmup frames
@@ -110,12 +110,12 @@ In `config.json`:
 
 ## Files
 
-- `captioning/audio_broadcast.py` — AudioBroadcaster class (encoder + WebSocket handler)
-- `captioning/audio.py` — Audio tap (`set_audio_tap` + callback integration)
-- `captioning/server.py` — `/ws/audio` and `/listen` routes
-- `captioning/main.py` — Broadcaster lifecycle wiring
-- `captioning/config.py` — `audio_stream_enabled`, `audio_stream_bitrate`, `max_audio_clients`
-- `captioning/static/listen.html` — Client player page
+- `audio_services/audio_broadcast.py` — AudioBroadcaster class (encoder + WebSocket handler)
+- `audio_services/audio.py` — Audio tap (`set_audio_tap` + callback integration)
+- `audio_services/server.py` — `/ws/audio` and `/listen` routes
+- `audio_services/main.py` — Broadcaster lifecycle wiring
+- `audio_services/config.py` — `audio_stream_enabled`, `audio_stream_bitrate`, `max_audio_clients`
+- `audio_services/static/listen.html` — Client player page
 
 ## Known Limitations / TODO
 

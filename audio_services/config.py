@@ -1,4 +1,4 @@
-"""Configuration management for the captioning system."""
+"""Configuration management for the audio services system."""
 
 import json
 import os

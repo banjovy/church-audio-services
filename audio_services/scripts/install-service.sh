@@ -1,14 +1,14 @@
 #!/bin/bash
-# Install (or update) the captioning systemd service.
+# Install (or update) the audio-services systemd service.
 # Usage: sudo ./install-service.sh [username]
-#   username defaults to 'captioning'
+#   username defaults to 'audio'
 # Idempotent — safe to re-run at any time.
 
 set -e
 
-SERVICE_USER="${1:-captioning}"
-INSTALL_DIR="/home/$SERVICE_USER/church-captioning"
-SERVICE_NAME="captioning"
+SERVICE_USER="${1:-audio}"
+INSTALL_DIR="/home/$SERVICE_USER/church-audio-services"
+SERVICE_NAME="audio-services"
 UNIT_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
 # Validate user exists
@@ -46,7 +46,7 @@ fi
 # Generate unit file (overwrites if already present)
 cat > "$UNIT_FILE" <<EOF
 [Unit]
-Description=Live Captioning Service
+Description=Church Audio Services
 After=network.target sound.target
 Wants=network.target
 
@@ -56,7 +56,7 @@ User=$SERVICE_USER
 Group=$SERVICE_USER
 WorkingDirectory=$INSTALL_DIR
 EnvironmentFile=$INSTALL_DIR/.env
-ExecStart=$INSTALL_DIR/.venv/bin/python -m captioning.main
+ExecStart=$INSTALL_DIR/.venv/bin/python -m audio_services.main
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
@@ -78,11 +78,11 @@ echo ""
 echo "=== Service installed ==="
 echo ""
 echo "Commands:"
-echo "  sudo systemctl start captioning    # Start"
-echo "  sudo systemctl stop captioning     # Stop"
-echo "  sudo systemctl restart captioning  # Restart"
-echo "  sudo systemctl status captioning   # Check status"
-echo "  journalctl -u captioning -f        # View logs"
+echo "  sudo systemctl start audio-services    # Start"
+echo "  sudo systemctl stop audio-services     # Stop"
+echo "  sudo systemctl restart audio-services  # Restart"
+echo "  sudo systemctl status audio-services   # Check status"
+echo "  journalctl -u audio-services -f        # View logs"
 echo ""
 echo "The service will auto-start on boot."
-echo "To start now: sudo systemctl start captioning"
+echo "To start now: sudo systemctl start audio-services"

@@ -183,7 +183,7 @@ async def run(config: AppConfig, audio_file: str | None = None, no_realtime: boo
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Church AV Captioning System")
+    parser = argparse.ArgumentParser(description="Church Audio Services")
     parser.add_argument(
         "--file", "-f",
         help="Path to an audio file (MP3, WAV, etc.) to use instead of live input"

@@ -200,7 +200,7 @@ sudo dnf reinstall portaudio portaudio-devel
 ### Using a known-good audio file
 
 ```bash
-python -m captioning.main --file test.wav --no-realtime
+python -m audio_services.main --file test.wav --no-realtime
 ```
 
 If this produces valid captions, live capture quality is the issue.
@@ -208,7 +208,7 @@ If this produces valid captions, live capture quality is the issue.
 ### Using live capture
 
 ```bash
-python -m captioning.main --model tiny
+python -m audio_services.main --model tiny
 ```
 
 Watch the logs for:
@@ -288,5 +288,5 @@ Set `input_device` to `null` to use the system default.
 8. [ ] Mic gain set appropriately
 9. [ ] PortAudio installed
 10. [ ] `sounddevice.query_devices()` lists the device
-11. [ ] `captioning --file test.wav` produces captions
+11. [ ] `audio-services --file test.wav` produces captions
 12. [ ] Live capture produces captions

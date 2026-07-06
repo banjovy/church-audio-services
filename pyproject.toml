@@ -1,7 +1,7 @@
 [project]
-name = "captioning"
+name = "audio-services"
 version = "1.0.1"
-description = "Church AV near real-time captioning system"
+description = "Church AV audio services — real-time captioning and hearing-assist streaming"
 requires-python = ">=3.10"
 dependencies = [
     "faster-whisper==1.1.0",
@@ -24,4 +24,4 @@ dev = [
 ]
 
 [project.scripts]
-captioning = "captioning.main:main"
+audio-services = "audio_services.main:main"
