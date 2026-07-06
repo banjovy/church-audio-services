@@ -160,6 +160,12 @@ Edit `config.json` (at the project root) to match your setup. The key settings t
 sudo ./audio_services/scripts/install-service.sh
 ```
 
+The script defaults to the `audio` user, but you can pass any username as an argument:
+
+```bash
+sudo ./audio_services/scripts/install-service.sh myuser
+```
+
 This creates and enables a systemd unit that:
 - Starts audio-services automatically on boot
 - Reads environment from `.env` at the project root

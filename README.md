@@ -1,10 +1,13 @@
 # Church Audio Services
 
-Real-time live captioning system for church services. Captures audio from a mixer board, transcribes with Whisper, and broadcasts captions to phones/TVs via WebSocket.
+Real-time captioning and live audio streaming for church services. Captures audio from a mixer board, transcribes with Whisper, and broadcasts captions and audio to phones/TVs via WebSocket.
 
 ## How It Works
 
-Audio from a lapel mic goes through the mixer board into a USB audio interface connected to a dedicated mini PC. The system captures audio, splits it into chunks on silence boundaries, transcribes each chunk using faster-whisper, applies a profanity filter, and pushes the text to all connected clients in real time.
+Audio from mics or other audio sources goes through the mixer board into a USB audio interface connected to a dedicated mini PC. The system:
+
+- Captures audio, splits it into chunks on silence boundaries, transcribes each chunk using faster-whisper, applies a profanity filter, and pushes captions to all connected clients in real time.
+- Simultaneously encodes the live audio to Opus and streams it over WebSocket for hearing-assist listening — users connect at `/listen` and hear the service through earphones or hearing devices.
 
 Clients connect via a simple web page — no app install required. A QR code is displayed for easy access.
 
@@ -57,9 +60,10 @@ sudo ./audio_services/scripts/install-service.sh [username]
 - `/scroll` — scrolling transcript (phones)
 - `/tv` — large text, auto-scroll (TVs/projectors)
 - `/current` — shows only the latest caption
+- `/listen` — live audio stream (hearing assist)
 - `/qr` — QR code page (mDNS hostname)
 - `/qr-ip` — QR code page (LAN IP fallback)
 
 ## Tech Stack
 
-Python, faster-whisper, sounddevice, aiohttp, PyAV, better-profanity
+Python, faster-whisper, sounddevice, aiohttp, PyAV (Opus encoding), better-profanity
