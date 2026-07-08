@@ -26,13 +26,14 @@ class CaptionMessage:
 
 
 class CaptionServer:
-    def __init__(self, port: int, max_history: int, max_clients: int, admin_pin: str, reconnect_timeout: int = 600, site_title: str = "Live Captions"):
+    def __init__(self, port: int, max_history: int, max_clients: int, admin_pin: str, reconnect_timeout: int = 600, site_title: str = "Live Captions", secondary_title: str = "Live Captions"):
         self._port = port
         self._max_history = max_history
         self._max_clients = max_clients
         self._admin_pin = admin_pin
         self._reconnect_timeout = reconnect_timeout
         self._site_title = site_title
+        self._secondary_title = secondary_title
         self._clients: set[web.WebSocketResponse] = set()
         self._history: list[CaptionMessage] = []
         self._sequence = 0
@@ -123,6 +124,7 @@ class CaptionServer:
     async def _handle_display(self, request: web.Request) -> web.Response:
         html = (STATIC_DIR / "display.html").read_text()
         html = html.replace("{{SITE_TITLE}}", self._site_title)
+        html = html.replace("{{SECONDARY_TITLE}}", self._secondary_title)
         html = html.replace(
             "/*CONFIG*/",
             f"const RECONNECT_TIMEOUT = {self._reconnect_timeout};"

@@ -108,6 +108,7 @@ async def run(config: AppConfig, audio_file: str | None = None, no_realtime: boo
         admin_pin=config.admin_pin,
         reconnect_timeout=config.reconnect_timeout,
         site_title=config.site_title,
+        secondary_title=config.secondary_title,
     )
     server.set_language_callback(engine.set_language)
 

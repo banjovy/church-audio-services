@@ -1,5 +1,6 @@
 {
   "site_title": "Church Audio Services",
+  "secondary_title": "Live Captions",
   "whisper_model": "small",
   "log_level": "info",
   "language": "en",

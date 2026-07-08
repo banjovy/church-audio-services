@@ -35,6 +35,7 @@ def _require_admin_pin() -> str:
 @dataclass
 class AppConfig:
     site_title: str = "Live Captions"
+    secondary_title: str = "Live Captions"
     whisper_model: str = "small"
     language: str = "en"
     log_level: str = "warning"
