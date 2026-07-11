@@ -218,7 +218,57 @@ Set the ALSA identifier in `config.json`:
 }
 ```
 
-### 8. Configure GPU settings
+### 8. Set and persist capture gain
+
+The USB audio interface defaults to max capture gain, which clips. Use alsamixer to set the correct level, then persist it.
+
+#### Disable PipeWire/WirePlumber
+
+WirePlumber resets ALSA levels on login, overriding saved state. Disable it for the service user:
+
+```bash
+systemctl --user disable --now pipewire pipewire.socket pipewire-pulse.socket wireplumber
+```
+
+#### Pin the USB device to a stable card index
+
+Ensure the USB audio device always gets the same card number across reboots:
+
+```bash
+sudo tee /etc/modprobe.d/alsa-cards.conf << 'EOF'
+# Pin USB audio (capture device) to card 0
+options snd_usb_audio index=0
+# Pin Intel HDA to card 1, NVidia to card 2
+options snd_hda_intel index=1,2
+EOF
+sudo dracut --force
+```
+
+Reboot and verify with `cat /proc/asound/cards`.
+
+#### Set and store levels
+
+```bash
+alsamixer -c 0
+```
+
+Set the capture level (typically 60–70% to avoid clipping), then save:
+
+```bash
+sudo alsactl store
+```
+
+This writes to `/var/lib/alsa/asound.state`. The `alsa-restore.service` (static unit, pulled in by `sound.target`) restores these levels on boot.
+
+#### Verify after reboot
+
+```bash
+amixer -c 0 get Mic
+```
+
+Confirm the level matches what you stored, not max.
+
+### 9. Configure GPU settings
 
 In `config.json`, set:
 
@@ -234,7 +284,7 @@ For CPU-only:
 "whisper_compute_type": "int8"
 ```
 
-### 9. Install the systemd service
+### 10. Install the systemd service
 
 ```bash
 sudo ./audio_services/scripts/install-service.sh lscoc
@@ -244,7 +294,7 @@ sudo ./audio_services/scripts/install-service.sh lscoc
 
 The service unit includes `LD_LIBRARY_PATH` for cuDNN automatically.
 
-### 10. Start it up
+### 11. Start it up
 
 ```bash
 sudo systemctl start audio-services
@@ -301,7 +351,7 @@ sudo systemctl restart audio-services
 ### Audio
 
 - **`arecord -l` shows no devices**: User needs `audio` group membership
-- **PipeWire hijacking devices**: Remove `pipewire-alsa`, mask PipeWire services
+- **PipeWire/WirePlumber resetting capture gain to max**: Disable PipeWire for the service user (see step 8)
 - **SELinux denials**: Install script sets contexts automatically, check `audit2why` if issues persist
 
 ## Key Version Constraints (GPU system)
