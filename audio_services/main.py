@@ -95,7 +95,9 @@ async def run(config: AppConfig, audio_file: str | None = None, no_realtime: boo
     # Initialize transcription engine
     engine = WhisperTranscriptionEngine()
     try:
-        engine.initialize(config.whisper_model, config.language)
+        engine.initialize(config.whisper_model, config.language,
+                          device=config.whisper_device,
+                          compute_type=config.whisper_compute_type)
     except RuntimeError as e:
         logger.error(f"Failed to initialize transcription engine: {e}")
         sys.exit(1)

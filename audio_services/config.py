@@ -37,6 +37,8 @@ class AppConfig:
     site_title: str = "Live Captions"
     secondary_title: str = "Live Captions"
     whisper_model: str = "small"
+    whisper_device: str = "cpu"
+    whisper_compute_type: str = "int8"
     language: str = "en"
     log_level: str = "warning"
     server_port: int = 8080
