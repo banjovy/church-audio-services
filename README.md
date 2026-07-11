@@ -13,25 +13,40 @@ Clients connect via a simple web page — no app install required. A QR code is 
 
 ## Requirements
 
-- Python 3.10+
-- Linux (Fedora, tested on HP EliteDesk 800 G4 Mini)
-- System packages: `gcc gcc-c++ python3-devel portaudio-devel libjpeg-turbo-devel`
+- Python 3.12 (required for GPU path with ctranslate2 3.24)
+- Linux — tested on:
+  - **Fedora 41** (Dell OptiPlex 3050 Tower, GTX 1050 Ti)
+  - **Ubuntu 22.04 LTS** (same hardware)
 - USB audio interface connected to mixer board
+- For GPU: NVIDIA GTX 1050 Ti (or other Pascal/newer) with 470xx driver
+
+## Supported Platforms
+
+| Platform | Status | Notes |
+|----------|--------|-------|
+| Fedora 41 | Tested, production | Requires RPM Fusion for NVIDIA driver |
+| Ubuntu 22.04 LTS | Tested | NVIDIA driver in official repos, simpler setup |
+
+See the platform-specific install guides:
+- [Fedora install guide](audio_services/docs/fedora/install.md)
+- [Ubuntu install guide](audio_services/docs/ubuntu/install.md)
 
 ## Setup
 
 ```bash
-python -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 cp .env.example .env
 # Edit .env — set ADMIN_PIN at minimum
 ```
 
+For GPU support, additional version-pinned packages are required. See the install guide for your platform.
+
 ## Configuration
 
 - `.env` — environment variables (ADMIN_PIN required)
-- `config.json` — application settings (model, audio, server port, profanity whitelist)
+- `config.json` — application settings (model, audio device, GPU settings, server port, profanity whitelist)
 
 ## Running
 
@@ -51,7 +66,11 @@ audio-services --model base --language es
 An install script sets up a systemd service for auto-start on boot:
 
 ```bash
-sudo ./audio_services/scripts/install-service.sh [username]
+# Fedora
+sudo ./audio_services/scripts/fedora/install-service.sh [username]
+
+# Ubuntu
+sudo ./audio_services/scripts/ubuntu/install-service.sh [username]
 ```
 
 ## Display Modes
@@ -67,3 +86,23 @@ sudo ./audio_services/scripts/install-service.sh [username]
 ## Tech Stack
 
 Python, faster-whisper, sounddevice, aiohttp, PyAV (Opus encoding), better-profanity
+
+## Documentation
+
+```
+audio_services/docs/
+├── fedora/
+│   ├── install.md          # Full Fedora install guide
+│   └── networking.md       # nmcli / NetworkManager reference
+├── ubuntu/
+│   ├── install.md          # Full Ubuntu install guide
+│   └── networking.md       # Netplan / systemd-networkd reference
+├── audio-troubleshooting.md
+├── design-principles.md
+├── display-guide.md
+├── hardware-upgrade-options.md
+├── hearing-assist-stream.md
+├── https-options.md
+├── viewer-guide.md
+└── whisper-gpu-guide.md
+```
