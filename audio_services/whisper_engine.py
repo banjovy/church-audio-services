@@ -20,7 +20,8 @@ class WhisperTranscriptionEngine(TranscriptionEngine):
         self._language = "en"
         self._model_name = ""
 
-    def initialize(self, model_size: str, language: str) -> None:
+    def initialize(self, model_size: str, language: str,
+                   device: str = "cpu", compute_type: str = "int8") -> None:
         self._language = language
         self._status = ModelStatus.LOADING
 
@@ -31,14 +32,18 @@ class WhisperTranscriptionEngine(TranscriptionEngine):
             # Use English-specific model when language is 'en'
             model_id = f"{size}.en" if language == "en" else size
             try:
-                logger.info(f"Loading Whisper model: {model_id}")
-                self._model = WhisperModel(
-                    model_id, device="cpu", compute_type="int8",
-                    cpu_threads=6,
-                )
+                logger.info(f"Loading Whisper model: {model_id} "
+                            f"(device={device}, compute_type={compute_type})")
+                kwargs = {
+                    "device": device,
+                    "compute_type": compute_type,
+                }
+                if device == "cpu":
+                    kwargs["cpu_threads"] = 6
+                self._model = WhisperModel(model_id, **kwargs)
                 self._model_name = model_id
                 self._status = ModelStatus.READY
-                logger.info(f"Model '{size}' loaded successfully")
+                logger.info(f"Model '{model_id}' loaded successfully on {device}")
                 return
             except Exception as e:
                 logger.warning(f"Failed to load model '{model_id}': {e}")

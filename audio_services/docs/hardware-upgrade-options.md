@@ -2,7 +2,9 @@
 
 Goal: 1-3s end-to-end latency with `small` or `medium` model for high accuracy.
 
-Current baseline: i5-8500T with `small` model = 1.8x realtime (~2.2s transcription per 4s chunk, ~6s end-to-end).
+Previous baseline: i5-8500T (CPU) with `small` model = 1.8x realtime (~2.2s transcription per 4s chunk, ~6s end-to-end).
+
+**Current system: Dell OptiPlex 3050 Tower + GTX 1050 Ti = ~420ms per chunk, ~2.5s end-to-end. ✅ ACHIEVED.**
 
 ## GPU Path
 
@@ -152,3 +154,138 @@ If size isn't a constraint, a standard tower chassis is easier and cheaper — n
 **Estimated total: $110-200**
 
 Tradeoff vs SFF: bigger box in the AV closet, but significantly cheaper and easier to source parts.
+
+---
+
+## Build Progress
+
+**System:** Dell OptiPlex 3050 Tower, i5-7500, 8GB RAM, 256GB NVMe SSD — ✅ working  
+**GPU:** MSI GTX 1050 Ti GAMING X 4GB — ✅ working (required SATA-to-6-pin power adapter)  
+**OS:** Fedora 41 Server — ✅ working  
+**Driver:** akmod-nvidia-470xx (470.256.02) — ✅ working  
+**CUDA:** 11.4 (bundled via ctranslate2 3.24.0 pip wheel) — ✅ working  
+**Python:** 3.12 — ✅ working  
+**Inference:** small.en, device=cuda, compute_type=int8 — ✅ working  
+**Performance:** ~420ms per chunk (4.7-9.4x realtime), ~2.5s end-to-end latency
+
+### Benchmarks (steady-state, after warmup)
+
+| Model | Chunk | Avg Time | Realtime Factor | End-to-end Latency |
+|-------|-------|----------|-----------------|-------------------|
+| small.en | 2s | 422ms | 4.7x | ~2.5s |
+| small.en | 3s | 428ms | 7.0x | ~3.4s |
+| small.en | 4s | 427ms | 9.4x | ~4.4s |
+| medium.en | 3s | 1152ms | 2.6x | ~4.2s |
+
+- small.en processing time is ~constant (~420ms) regardless of chunk length
+- medium.en is viable but tighter — use if small.en accuracy is insufficient
+- First inference after cold start: ~1.4s (CUDA context init, one-time cost)
+- float16 NOT supported on Pascal — must use int8
+
+### Lessons Learned from Fedora 44 Attempt
+
+**Problem 1: MSI Gaming 1050 Ti not detected on PCIe bus**
+- Root cause: MSI Gaming variant has a 6-pin PCIe power connector that must be plugged in, even though the card draws <75W. Card won't enumerate without supplementary power.
+- Fix: SATA 15-pin to 6-pin PCIe power adapter. NVMe is onboard so SATA power connectors are free.
+
+**Problem 2: NVIDIA 595.x driver (open kernel modules) doesn't support Pascal**
+- The `akmod-nvidia` package on Fedora 44 installs driver 595.x which is the **open kernel module** variant.
+- Open modules require GSP (GPU System Processor) — only available on Turing (RTX 2000+) and newer.
+- GTX 1050 Ti (GP107, Pascal) has no GSP. Error: "not supported by open nvidia.ko because it does not include the required GPU System Processor (GSP)"
+- Fix: Use `akmod-nvidia-470xx` — the proprietary (closed-source) legacy branch that supports Pascal.
+
+**Problem 3: ctranslate2 3.x requires executable stack — blocked by kernel 7.1**
+- Fedora 44's kernel 7.1.x hardened against executable stacks at the kernel level (not just SELinux).
+- ctranslate2 3.24.0 (CUDA 11 compatible) requires execstack → `ImportError: cannot enable executable stack`
+- Not fixable with `setenforce 0`, `execstack -c`, or sysctl. Kernel-level block.
+- ctranslate2 4.x doesn't need execstack but requires CUDA 12 (needs driver 525+, incompatible with 470xx).
+
+**Problem 4: CUDA 11.4 nvcc incompatible with GCC 16 (Fedora 44)**
+- CUDA 11.4 officially supports up to GCC 11.
+- GCC 16's C++ headers use features nvcc can't parse (even with `--allow-unsupported-compiler`).
+- No older GCC packages available on Fedora 44 (only gcc15 compat, which also fails).
+- whisper.cpp CUDA build impossible on F44.
+
+**Problem 5: float16 compute type not supported on Pascal**
+- GTX 1050 Ti (compute capability 6.1) doesn't support efficient float16.
+- Error: "Requested float16 compute type, but the target device or backend do not support efficient float16 computation"
+- Fix: Use `compute_type="int8"` — works great, fast inference, fits in 4GB VRAM.
+
+### Why Fedora 41 (chosen solution)
+
+- GCC 14.2 — compatible with CUDA 11.4 if nvcc is ever needed
+- Kernel 6.11 — no execstack blocking (ctranslate2 3.24 loads fine)
+- Python 3.12 native — ctranslate2 3.24 has prebuilt wheels
+- `akmod-nvidia-470xx` available from RPM Fusion
+- Fedora 41 ISO: `https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/41/Server/x86_64/iso/`
+- Note: F41 is EOL (Dec 2025) — acceptable for a dedicated appliance
+
+### Final Working Setup (reproducible)
+
+```bash
+# 1. Install Fedora 41 Server, expand root LV to 50G+
+lvextend -L 50G /dev/<vg>/root
+xfs_growfs /
+
+# 2. Update system
+sudo dnf update
+
+# 3. Enable RPM Fusion
+sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
+sudo dnf install https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
+
+# 4. Install NVIDIA 470xx driver
+sudo dnf install akmod-nvidia-470xx xorg-x11-drv-nvidia-470xx-cuda
+sudo akmods --force --kernels $(uname -r)
+
+# 5. Blacklist nouveau, add nvidia to initramfs
+echo "blacklist nouveau" | sudo tee /etc/modprobe.d/blacklist-nouveau.conf
+echo "options nouveau modeset=0" | sudo tee -a /etc/modprobe.d/blacklist-nouveau.conf
+echo 'add_drivers+=" nvidia nvidia_modeset nvidia_uvm nvidia_drm "' | sudo tee /etc/dracut.conf.d/nvidia.conf
+sudo dracut --force
+sudo reboot
+
+# 6. Verify GPU
+nvidia-smi  # Should show GTX 1050 Ti, driver 470.x, CUDA 11.4
+
+# 7. Install system deps
+sudo dnf install gcc gcc-c++ python3-devel portaudio-devel libjpeg-turbo-devel alsa-utils ffmpeg-devel avahi
+
+# 8. Clone repo and create venv
+cd ~
+git clone <repo-url> church-audio-services
+cd church-audio-services
+python3.12 -m venv .venv
+source .venv/bin/activate
+
+# 9. Install Python packages
+pip install -e .
+pip install ctranslate2==3.24.0
+pip install faster-whisper==0.10.1 --no-deps
+pip install av huggingface-hub tokenizers onnxruntime tqdm
+pip install nvidia-cudnn-cu11==8.9.6.50
+
+# 10. Configure cuDNN library path
+echo 'export LD_LIBRARY_PATH=$HOME/church-audio-services/.venv/lib/python3.12/site-packages/nvidia/cudnn/lib:$LD_LIBRARY_PATH' >> ~/.bashrc
+source ~/.bashrc
+
+# 11. Verify GPU inference
+python -c "
+import faster_whisper
+model = faster_whisper.WhisperModel('small.en', device='cuda', compute_type='int8')
+print('GPU model loaded successfully')
+"
+
+# 12. Configure .env and config.json, install systemd service
+cp .env.example .env  # Edit with ADMIN_PIN
+sudo ./audio_services/scripts/install-service.sh $(whoami)
+sudo systemctl start audio-services
+```
+
+### CUDA Toolkit (NOT required for faster-whisper path)
+
+ctranslate2 3.24.0 bundles CUDA 11 runtime libraries. The CUDA toolkit (nvcc) is only needed if building whisper.cpp from source. For the faster-whisper Python path, you only need:
+- NVIDIA driver (470xx)
+- ctranslate2 3.24.0 (pip wheel includes CUDA runtime)
+- nvidia-cudnn-cu11 (pip wheel includes cuDNN)
+

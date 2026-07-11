@@ -117,6 +117,7 @@ class AudioInputHandler:
                 channels=self._config.channels,
                 dtype="float32",
                 latency="high",
+                blocksize=4096,
                 callback=self._audio_callback,
             )
             self._stream.start()

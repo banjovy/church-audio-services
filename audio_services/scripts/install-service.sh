@@ -57,6 +57,7 @@ Group=$SERVICE_USER
 WorkingDirectory=$INSTALL_DIR
 EnvironmentFile=$INSTALL_DIR/.env
 ExecStart=$INSTALL_DIR/.venv/bin/python -m audio_services.main
+Environment="LD_LIBRARY_PATH=$INSTALL_DIR/.venv/lib64/python3.12/site-packages/nvidia/cudnn/lib:$INSTALL_DIR/.venv/lib/python3.12/site-packages/nvidia/cudnn/lib"
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal

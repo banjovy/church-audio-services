@@ -26,7 +26,8 @@ class TranscriptionEngine(ABC):
     """Abstract interface for transcription backends."""
 
     @abstractmethod
-    def initialize(self, model_size: str, language: str) -> None: ...
+    def initialize(self, model_size: str, language: str,
+                   device: str = "cpu", compute_type: str = "int8") -> None: ...
 
     @abstractmethod
     def transcribe(self, audio: np.ndarray) -> TranscriptionResult | None: ...

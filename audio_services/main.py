@@ -95,7 +95,9 @@ async def run(config: AppConfig, audio_file: str | None = None, no_realtime: boo
     # Initialize transcription engine
     engine = WhisperTranscriptionEngine()
     try:
-        engine.initialize(config.whisper_model, config.language)
+        engine.initialize(config.whisper_model, config.language,
+                          device=config.whisper_device,
+                          compute_type=config.whisper_compute_type)
     except RuntimeError as e:
         logger.error(f"Failed to initialize transcription engine: {e}")
         sys.exit(1)
@@ -108,6 +110,7 @@ async def run(config: AppConfig, audio_file: str | None = None, no_realtime: boo
         admin_pin=config.admin_pin,
         reconnect_timeout=config.reconnect_timeout,
         site_title=config.site_title,
+        secondary_title=config.secondary_title,
     )
     server.set_language_callback(engine.set_language)
 
