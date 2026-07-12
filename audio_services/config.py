@@ -51,6 +51,7 @@ class AppConfig:
     audio: AudioConfig = field(default_factory=AudioConfig)
     audio_stream_enabled: bool = True
     audio_stream_bitrate: int = 96000
+    audio_stream_gain_db: float = 12.0
     max_audio_clients: int = 50
 
     @classmethod

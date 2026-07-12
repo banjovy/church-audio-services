@@ -121,6 +121,7 @@ async def run(config: AppConfig, audio_file: str | None = None, no_realtime: boo
             sample_rate=config.audio.sample_rate,
             channels=config.audio.channels,
             bitrate=config.audio_stream_bitrate,
+            gain_db=config.audio_stream_gain_db,
             max_clients=config.max_audio_clients,
         )
         broadcaster.start()
@@ -210,6 +211,21 @@ def main():
         choices=["en", "es", "auto"],
         help="Override transcription language"
     )
+    parser.add_argument(
+        "--level-test",
+        action="store_true",
+        help="Run audio input level test (shows live meter and gain recommendations)"
+    )
+    parser.add_argument(
+        "--duration",
+        type=float,
+        default=10.0,
+        help="Duration in seconds for --level-test (default: 10)"
+    )
+    parser.add_argument(
+        "--device",
+        help="Override audio input device for --level-test (index, ALSA id, or name)"
+    )
     args = parser.parse_args()
 
     # Load config
@@ -223,6 +239,19 @@ def main():
     else:
         logger.warning("No config.json found, using defaults")
         config = AppConfig()
+
+    # Handle --level-test before full startup
+    if args.level_test:
+        from .level_test import run_level_test
+        device_override = None
+        if args.device:
+            # Try to interpret as int index, else pass as string
+            try:
+                device_override = int(args.device)
+            except ValueError:
+                device_override = args.device
+        run_level_test(config, duration=args.duration, device_override=device_override)
+        return
 
     # Apply log level from config
     level = getattr(logging, config.log_level.upper(), logging.WARNING)

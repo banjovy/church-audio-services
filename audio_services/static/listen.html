@@ -85,6 +85,12 @@
       btn.disabled = true;
       audioCtx = new AudioContext({ sampleRate: 48000 });
       const JITTER_MS = 80;
+      const CLIENT_GAIN = 1.5; // Mild additional boost on top of server +12dB
+
+      // Create gain node for volume boost (compensates for reduced server gain)
+      const gainNode = audioCtx.createGain();
+      gainNode.gain.value = CLIENT_GAIN;
+      gainNode.connect(audioCtx.destination);
 
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
       audioWs = new WebSocket(`${proto}//${location.host}/ws/audio`);
@@ -115,11 +121,19 @@
             const src = audioBuffer.getChannelData(ch);
             const dst = trimmed.getChannelData(ch);
             dst.set(src.subarray(overlapSamples));
+
+            // Apply short fade-in/fade-out to eliminate boundary clicks
+            const fadeSamples = 128; // ~2.7ms at 48kHz
+            for (let s = 0; s < fadeSamples; s++) {
+              const t = s / fadeSamples;
+              dst[s] *= t;
+              dst[trimmedLength - 1 - s] *= t;
+            }
           }
 
           const source = audioCtx.createBufferSource();
           source.buffer = trimmed;
-          source.connect(audioCtx.destination);
+          source.connect(gainNode);
 
           const now = audioCtx.currentTime;
           const jitter = JITTER_MS / 1000;
@@ -130,14 +144,13 @@
           source.start(nextStartTime);
           nextStartTime += trimmed.duration;
 
-          // Update level meter (scaled for visual midpoint)
+          // Update level meter
           const data = trimmed.getChannelData(0);
           let peak = 0;
           for (let i = 0; i < data.length; i++) {
             const abs = Math.abs(data[i]);
             if (abs > peak) peak = abs;
           }
-          // Square root scaling so typical speech sits around 50%
           levelFill.style.width = Math.min(100, Math.sqrt(peak) * 100) + '%';
         } catch (e) {
           // Skip segments that fail to decode

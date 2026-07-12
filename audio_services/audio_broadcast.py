@@ -24,12 +24,15 @@ class AudioBroadcaster:
 
     Each segment is a self-contained Ogg/Opus file that browsers can decode
     with decodeAudioData(). Segments are 500ms long for good codec quality.
+    The first OVERLAP_FRAMES are encoder warmup from the previous segment
+    and get trimmed by the client after decoding.
     """
 
-    def __init__(self, sample_rate: int = 48000, channels: int = 1, bitrate: int = 96000, max_clients: int = 50):
+    def __init__(self, sample_rate: int = 48000, channels: int = 1, bitrate: int = 96000, gain_db: float = 12.0, max_clients: int = 50):
         self._sample_rate = sample_rate
         self._channels = channels
         self._bitrate = bitrate
+        self._gain_multiplier = 10 ** (gain_db / 20)  # Convert dB to linear
         self._max_clients = max_clients
         self._clients: set[web.WebSocketResponse] = set()
         self._pcm_buffer = np.array([], dtype=np.float32)
@@ -42,7 +45,7 @@ class AudioBroadcaster:
     def start(self) -> None:
         """Mark broadcaster as running."""
         self._running = True
-        logger.info(f"Audio broadcaster started (Opus {self._bitrate // 1000}kbps, {self._sample_rate}Hz, {FRAMES_PER_SEGMENT * 20}ms segments)")
+        logger.info(f"Audio broadcaster started (Opus {self._bitrate // 1000}kbps, {self._sample_rate}Hz, {FRAMES_PER_SEGMENT * 20}ms segments, gain {gain_db:+.0f}dB)")
 
     def stop(self) -> None:
         """Shut down and disconnect clients."""
@@ -54,8 +57,8 @@ class AudioBroadcaster:
         """Encode and mux PCM frames into a self-contained Ogg/Opus file.
 
         Prepends overlap frames from the previous segment to give the encoder
-        context, then only outputs the non-overlap portion. Applies fade-in/out
-        at segment boundaries to eliminate clicks.
+        context, eliminating cold-start clicks. The client trims these after
+        decoding. No per-frame gain processing — gain is handled client-side.
         """
         # Prepend previous tail as encoder warmup
         all_frames = self._prev_tail + pcm_frames
@@ -70,8 +73,8 @@ class AudioBroadcaster:
         stream.layout = self._layout
 
         for i, raw in enumerate(all_frames):
-            # Apply gain boost (+12dB)
-            raw = raw * 4.0
+            # Apply gain boost (configurable via audio_stream_gain_db)
+            raw = raw * self._gain_multiplier
             np.clip(raw, -1.0, 1.0, out=raw)
 
             frame = av.AudioFrame.from_ndarray(

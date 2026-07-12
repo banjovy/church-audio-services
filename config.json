@@ -23,6 +23,7 @@
   "reconnect_timeout": 600,
   "audio_stream_enabled": true,
   "audio_stream_bitrate": 128000,
+  "audio_stream_gain_db": 12.0,
   "max_audio_clients": 30,
   "profanity_whitelist": [
     "hell",
