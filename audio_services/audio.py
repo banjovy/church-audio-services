@@ -1,8 +1,8 @@
 """Audio input handler - captures from USB/system audio interface."""
 
 import logging
-import threading
 import time
+from collections import deque
 
 import numpy as np
 import sounddevice as sd
@@ -95,8 +95,7 @@ def validate_audio_device(device: str | int | None) -> int | None:
 class AudioInputHandler:
     def __init__(self, config: AudioConfig):
         self._config = config
-        self._buffer: list[np.ndarray] = []
-        self._lock = threading.Lock()
+        self._buffer: deque[np.ndarray] = deque()
         self._capturing = False
         self._stream: sd.InputStream | None = None
         self._input_level: float = -100.0
@@ -142,35 +141,48 @@ class AudioInputHandler:
         max_samples = int(self._config.sample_rate * self._config.max_chunk_seconds)
         pause_samples = int(self._config.sample_rate * 0.3)  # 300ms silence = pause
 
-        with self._lock:
-            if not self._buffer:
+        # Drain deque into local list (atomic popleft, no lock needed)
+        chunks = []
+        while self._buffer:
+            try:
+                chunks.append(self._buffer.popleft())
+            except IndexError:
+                break
+
+        if not chunks:
+            return None
+
+        concatenated = np.concatenate(chunks)
+        if len(concatenated) < min_samples:
+            # Not enough audio yet — put it back
+            self._buffer.appendleft(concatenated)
+            return None
+
+        # Look for a silence gap after the minimum length
+        cut_point = None
+        search_end = min(len(concatenated), max_samples)
+
+        for pos in range(min_samples, search_end - pause_samples, pause_samples // 2):
+            window = concatenated[pos:pos + pause_samples]
+            peak = np.max(np.abs(window))
+            level_db = 20 * np.log10(peak + 1e-10)
+            if level_db < self._config.silence_threshold_db + 10:  # Slightly above silence threshold
+                cut_point = pos
+                break
+
+        # If no pause found and we've hit max, cut at max
+        if cut_point is None:
+            if len(concatenated) >= max_samples:
+                cut_point = max_samples
+            else:
+                # Wait for more audio or a pause — put it back
+                self._buffer.appendleft(concatenated)
                 return None
-            concatenated = np.concatenate(self._buffer)
-            if len(concatenated) < min_samples:
-                return None
 
-            # Look for a silence gap after the minimum length
-            cut_point = None
-            search_end = min(len(concatenated), max_samples)
-
-            for pos in range(min_samples, search_end - pause_samples, pause_samples // 2):
-                window = concatenated[pos:pos + pause_samples]
-                peak = np.max(np.abs(window))
-                level_db = 20 * np.log10(peak + 1e-10)
-                if level_db < self._config.silence_threshold_db + 10:  # Slightly above silence threshold
-                    cut_point = pos
-                    break
-
-            # If no pause found and we've hit max, cut at max
-            if cut_point is None:
-                if len(concatenated) >= max_samples:
-                    cut_point = max_samples
-                else:
-                    return None  # Wait for more audio or a pause
-
-            chunk = concatenated[:cut_point]
-            leftover = concatenated[cut_point:]
-            self._buffer = [leftover] if len(leftover) > 0 else []
+        chunk = concatenated[:cut_point]
+        leftover = concatenated[cut_point:]
+        if len(leftover) > 0:
+            self._buffer.appendleft(leftover)
 
         return self._preprocess(chunk)
 
@@ -204,8 +216,8 @@ class AudioInputHandler:
             except Exception:
                 pass  # Never let the tap break audio capture
 
-        with self._lock:
-            self._buffer.append(audio.copy())
+        # deque.append is GIL-atomic — no lock needed
+        self._buffer.append(audio.copy())
 
     def _preprocess(self, audio: np.ndarray) -> np.ndarray:
         """Resample if needed and normalize audio to target level."""

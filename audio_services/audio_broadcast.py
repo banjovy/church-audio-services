@@ -32,6 +32,7 @@ class AudioBroadcaster:
         self._sample_rate = sample_rate
         self._channels = channels
         self._bitrate = bitrate
+        self._gain_db = gain_db
         self._gain_multiplier = 10 ** (gain_db / 20)  # Convert dB to linear
         self._max_clients = max_clients
         self._clients: set[web.WebSocketResponse] = set()
@@ -45,7 +46,7 @@ class AudioBroadcaster:
     def start(self) -> None:
         """Mark broadcaster as running."""
         self._running = True
-        logger.info(f"Audio broadcaster started (Opus {self._bitrate // 1000}kbps, {self._sample_rate}Hz, {FRAMES_PER_SEGMENT * 20}ms segments, gain {gain_db:+.0f}dB)")
+        logger.info(f"Audio broadcaster started (Opus {self._bitrate // 1000}kbps, {self._sample_rate}Hz, {FRAMES_PER_SEGMENT * 20}ms segments, gain {self._gain_db:+.0f}dB)")
 
     def stop(self) -> None:
         """Shut down and disconnect clients."""
