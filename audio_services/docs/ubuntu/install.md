@@ -1,82 +1,76 @@
-# Installation Guide
+# Installation Guide — Ubuntu 22.04 LTS
 
-How to install (or reinstall) the audio services system on a fresh or existing machine.
+How to install the audio services system on Ubuntu 22.04 LTS.
 
 ## Platform
 
-- **GPU system (primary):** Dell OptiPlex 3050 Tower, GTX 1050 Ti, Fedora 41
+- **GPU system (primary):** Dell OptiPlex 3050 Tower, GTX 1050 Ti, Ubuntu 22.04 LTS
 - **CPU-only fallback:** Any x86_64 Linux with AVX2 support (e.g., HP EliteDesk i5-8500T)
 
 The instructions below cover the GPU path. For CPU-only, skip the NVIDIA/GPU sections and set `whisper_device` to `"cpu"` in config.json.
 
+## Why Ubuntu 22.04 LTS
+
+- 5-year support window (through April 2027, ESM through 2032)
+- Kernel 5.15 HWE — stable, no execstack issues with ctranslate2
+- `nvidia-driver-470` in official Ubuntu repos — no third-party repos needed
+- Python 3.12 available via deadsnakes PPA
+- No rolling-release breakage from kernel/GCC updates
+- NVIDIA Container Toolkit has first-class support (if containers are needed later)
+
 ## Prerequisites
 
-- Fedora 41 Server (or compatible — see note on OS choice below)
-- Python 3.12
+- Ubuntu 22.04 LTS Server (minimal install recommended)
+- Python 3.12 (via deadsnakes PPA)
 - User account for the service (default: `lscoc` or `audio`)
 - USB audio interface connected to the mixer board's aux bus
 - Internet connection (for initial package and model downloads)
 - For GPU: NVIDIA GTX 1050 Ti (or other Pascal/newer GPU)
 
-### OS Choice
-
-Fedora 41 is tested and working. Key requirements for GPU support:
-
-- GCC ≤ 14 (for CUDA toolkit compilation if needed)
-- Kernel ≤ 6.x (kernel 7.x blocks executable stacks, breaking ctranslate2 3.x)
-- `akmod-nvidia-470xx` available from RPM Fusion (for Pascal GPUs)
-- Python 3.12 available (ctranslate2 3.24 has prebuilt wheels)
-
-Other viable options: Ubuntu 22.04 LTS, Rocky/Alma Linux 9, Fedora 40.
-
-**Do NOT use Fedora 44+** — kernel 7.1 blocks executable stacks (breaks ctranslate2), and GCC 16 is incompatible with CUDA 11.4's nvcc.
-
 ### System Dependencies
 
 ```bash
-sudo dnf install gcc gcc-c++ python3-devel portaudio-devel libjpeg-turbo-devel alsa-utils
+sudo apt update
+sudo apt install -y build-essential python3-dev libportaudio2 portaudio19-dev \
+  libjpeg-dev alsa-utils gcc g++
 ```
 
 For audio stream encoding (PyAV build from source, if needed):
 
 ```bash
-sudo dnf install ffmpeg-devel
+sudo apt install -y libavformat-dev libavcodec-dev libavutil-dev libswresample-dev
+```
+
+### Python 3.12 (deadsnakes PPA)
+
+Ubuntu 22.04 ships Python 3.10. ctranslate2 3.24 needs 3.12:
+
+```bash
+sudo apt install -y software-properties-common
+sudo add-apt-repository -y ppa:deadsnakes/ppa
+sudo apt update
+sudo apt install -y python3.12 python3.12-venv python3.12-dev
 ```
 
 ### NVIDIA GPU Setup
 
-#### 1. Enable RPM Fusion
+#### 1. Install the 470 driver
+
+The GTX 1050 Ti (Pascal, GP107) requires the **470 legacy branch**. Ubuntu ships this in the official repos.
 
 ```bash
-sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
-sudo dnf install https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
+sudo apt install -y nvidia-driver-470
 ```
 
-#### 2. Install the 470xx proprietary driver
+This automatically blacklists nouveau and sets up the kernel module (DKMS).
 
-The GTX 1050 Ti (Pascal, GP107) requires the **470xx legacy branch**. The newer open kernel modules (595+) only support Turing and newer GPUs.
-
-```bash
-sudo dnf install akmod-nvidia-470xx xorg-x11-drv-nvidia-470xx-cuda
-```
-
-#### 3. Wait for kernel module to build
+#### 2. Reboot
 
 ```bash
-sudo akmods --force --kernels $(uname -r)
-```
-
-#### 4. Blacklist nouveau and configure initramfs
-
-```bash
-echo "blacklist nouveau" | sudo tee /etc/modprobe.d/blacklist-nouveau.conf
-echo "options nouveau modeset=0" | sudo tee -a /etc/modprobe.d/blacklist-nouveau.conf
-echo 'add_drivers+=" nvidia nvidia_modeset nvidia_uvm nvidia_drm "' | sudo tee /etc/dracut.conf.d/nvidia.conf
-sudo dracut --force
 sudo reboot
 ```
 
-#### 5. Verify after reboot
+#### 3. Verify after reboot
 
 ```bash
 nvidia-smi
@@ -84,16 +78,18 @@ nvidia-smi
 
 Should show the GTX 1050 Ti, driver 470.x, CUDA 11.4.
 
+**Note:** If `nvidia-smi` fails, check that Secure Boot is disabled in BIOS, or enroll the MOK key that DKMS generates during install.
+
 ### mDNS (optional but recommended)
 
 Avahi lets devices find the server by hostname (e.g., `audio.local`) without knowing the IP:
 
 ```bash
-sudo dnf install avahi
+sudo apt install -y avahi-daemon
 sudo systemctl enable --now avahi-daemon
 ```
 
-To set the hostname to `audio` (so it resolves as `audio.local` on the LAN):
+To set the hostname:
 
 ```bash
 sudo hostnamectl set-hostname audio
@@ -101,13 +97,15 @@ sudo hostnamectl set-hostname audio
 
 ### Firewall
 
-Open the server port and mDNS so devices on the LAN can connect:
+Ubuntu uses `ufw` by default:
 
 ```bash
-sudo firewall-cmd --permanent --add-port=8080/tcp
-sudo firewall-cmd --permanent --add-service=mdns
-sudo firewall-cmd --reload
+sudo ufw allow 8080/tcp
+sudo ufw allow 5353/udp  # mDNS
+sudo ufw enable
 ```
+
+If `ufw` is not active and you don't need a firewall on the LAN, skip this.
 
 ### Service User Account
 
@@ -132,8 +130,6 @@ cd church-audio-services
 
 ### 2. Create the Python virtual environment
 
-**Must use Python 3.12** (ctranslate2 3.24 requires it for CUDA 11 support):
-
 ```bash
 python3.12 -m venv .venv
 source .venv/bin/activate
@@ -145,7 +141,7 @@ source .venv/bin/activate
 # Install the project
 pip install -e .
 
-# Downgrade to CUDA 11 compatible versions (required for 470xx driver)
+# Downgrade to CUDA 11 compatible versions (required for 470 driver)
 pip install ctranslate2==3.24.0
 pip install faster-whisper==0.10.1 --no-deps
 pip install av huggingface-hub tokenizers onnxruntime tqdm
@@ -220,19 +216,25 @@ Set the ALSA identifier in `config.json`:
 
 ### 8. Set and persist capture gain
 
-The USB audio interface defaults to max capture gain, which clips. Use alsamixer to set the correct level, then persist it.
+The USB audio interface defaults to max capture gain, which clips.
 
-#### Disable PipeWire/WirePlumber
+#### Disable PipeWire/PulseAudio (if present)
 
-WirePlumber resets ALSA levels on login, overriding saved state. Disable it for the service user:
+Ubuntu 22.04 Server minimal does not install PipeWire or PulseAudio. If you installed a desktop environment or they are present, disable them:
 
 ```bash
 systemctl --user disable --now pipewire pipewire.socket pipewire-pulse.socket wireplumber
 ```
 
-#### Pin the USB device to a stable card index
+Or for PulseAudio:
 
-Ensure the USB audio device always gets the same card number across reboots:
+```bash
+systemctl --user disable --now pulseaudio pulseaudio.socket
+```
+
+On a minimal server install, skip this step.
+
+#### Pin the USB device to a stable card index
 
 ```bash
 sudo tee /etc/modprobe.d/alsa-cards.conf << 'EOF'
@@ -241,7 +243,7 @@ options snd_usb_audio index=0
 # Pin Intel HDA to card 1, NVidia to card 2
 options snd_hda_intel index=1,2
 EOF
-sudo dracut --force
+sudo update-initramfs -u
 ```
 
 Reboot and verify with `cat /proc/asound/cards`.
@@ -258,7 +260,7 @@ Set the capture level (typically 60–70% to avoid clipping), then save:
 sudo alsactl store
 ```
 
-This writes to `/var/lib/alsa/asound.state`. The `alsa-restore.service` (static unit, pulled in by `sound.target`) restores these levels on boot.
+This writes to `/var/lib/alsa/asound.state`. The `alsa-restore.service` restores these levels on boot.
 
 #### Verify after reboot
 
@@ -287,7 +289,7 @@ For CPU-only:
 ### 10. Install the systemd service
 
 ```bash
-sudo ./audio_services/scripts/install-service.sh lscoc
+sudo ./audio_services/scripts/ubuntu/install-service.sh lscoc
 ```
 
 (Replace `lscoc` with your username if different.)
@@ -324,7 +326,7 @@ sudo systemctl restart audio-services
 ## Reinstalling the Service File
 
 ```bash
-sudo ./audio_services/scripts/install-service.sh lscoc
+sudo ./audio_services/scripts/ubuntu/install-service.sh lscoc
 sudo systemctl restart audio-services
 ```
 
@@ -339,30 +341,42 @@ sudo systemctl restart audio-services
 
 ### GPU-specific
 
-- **`nvidia-smi` fails**: Check `lspci | grep -i nvidia` — if card isn't visible, check 6-pin PCIe power connector (MSI Gaming cards require it even though card is <75W)
-- **"not supported by open nvidia.ko"**: You have the wrong driver. Remove `akmod-nvidia` and install `akmod-nvidia-470xx`
-- **"cannot enable executable stack"**: Wrong kernel or OS version. Need kernel ≤ 6.x (Fedora 41 or older)
+- **`nvidia-smi` fails**: Check Secure Boot status. Either disable it in BIOS or enroll the DKMS MOK key (`sudo mokutil --import /var/lib/shim-signed/mok/MOK.der`)
 - **"CUDA driver version is insufficient"**: ctranslate2 version mismatch. Need `ctranslate2==3.24.0` (not 4.x) for the 470 driver
 - **"float16 not supported"**: Pascal GPUs don't support float16. Use `compute_type: "int8"`
 - **"libcudnn_ops_infer.so.8 not found"**: Install `pip install nvidia-cudnn-cu11==8.9.6.50` and ensure `LD_LIBRARY_PATH` is set
-- **nouveau still loading**: Check `lsmod | grep nouveau`. Ensure blacklist is in `/etc/modprobe.d/` and nvidia modules are in initramfs (`dracut --force`)
+- **nouveau still loading**: `sudo lsmod | grep nouveau` — the nvidia-driver-470 package should blacklist it automatically. If not: `echo "blacklist nouveau" | sudo tee /etc/modprobe.d/blacklist-nouveau.conf && sudo update-initramfs -u && sudo reboot`
 - **Slow first transcription (~1.4s)**: Normal — CUDA context initialization on first inference. Subsequent calls are ~420ms.
 
 ### Audio
 
-- **`arecord -l` shows no devices**: User needs `audio` group membership
-- **PipeWire/WirePlumber resetting capture gain to max**: Disable PipeWire for the service user (see step 8)
-- **SELinux denials**: Install script sets contexts automatically, check `audit2why` if issues persist
+- **`arecord -l` shows no devices**: User needs `audio` group membership (`sudo usermod -aG audio $USER`, then re-login)
+- **PipeWire/PulseAudio resetting capture gain**: Disable for the service user (see step 8)
+- **Card index changes between reboots**: Verify `/etc/modprobe.d/alsa-cards.conf` exists and run `sudo update-initramfs -u`
+
+## Key Differences from Fedora Install
+
+| Area | Fedora 41 | Ubuntu 22.04 LTS |
+|------|-----------|------------------|
+| Package manager | dnf | apt |
+| NVIDIA driver source | RPM Fusion (`akmod-nvidia-470xx`) | Official repos (`nvidia-driver-470`) |
+| Kernel module build | akmods | DKMS (automatic) |
+| Initramfs rebuild | `dracut --force` | `update-initramfs -u` |
+| Python 3.12 | System default | deadsnakes PPA |
+| Firewall | firewalld (`firewall-cmd`) | ufw |
+| Kernel | 6.11 (rolling) | 5.15 HWE (stable) |
+| SELinux | Enforcing by default | Not present (AppArmor instead) |
+| Audio daemon | PipeWire (default) | None on server minimal |
 
 ## Key Version Constraints (GPU system)
 
 | Component | Version | Why |
 |-----------|---------|-----|
-| NVIDIA driver | 470xx | Last branch supporting Pascal (GTX 1050 Ti) |
+| NVIDIA driver | 470 | Last branch supporting Pascal (GTX 1050 Ti) |
 | CUDA (bundled) | 11.4 | Max supported by 470 driver |
 | ctranslate2 | 3.24.0 | Last version with CUDA 11 runtime |
 | faster-whisper | 0.10.1 | Last version compatible with ctranslate2 3.x |
 | nvidia-cudnn-cu11 | 8.9.6.50 | cuDNN 8 for CUDA 11 |
 | Python | 3.12 | ctranslate2 3.24 has cp312 wheels |
-| Fedora | 41 | GCC 14 + kernel 6.11 (no execstack blocking) |
+| Ubuntu | 22.04 LTS | Kernel 5.15 HWE, stable LTS, driver in repos |
 | compute_type | int8 | float16 not supported on Pascal |
